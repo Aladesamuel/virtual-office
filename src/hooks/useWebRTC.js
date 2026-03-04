@@ -110,7 +110,13 @@ export function useWebRTC(roomId, userName, isJoined) {
         const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
             clientId: `vo_${myId}`,
             clean: true,
-            connectTimeout: 4000
+            connectTimeout: 4000,
+            will: {
+                topic: `vo/room/${roomId}/${myId}/pres`,
+                payload: '', // Empty payload clears retained message on broker
+                retain: true,
+                qos: 1
+            }
         });
         mqttRef.current = client;
 
@@ -126,18 +132,28 @@ export function useWebRTC(roomId, userName, isJoined) {
         });
 
         client.on('message', async (topic, message) => {
-            const payload = JSON.parse(message.toString());
+            const msgStr = message.toString();
 
             // Handle Presence
             if (topic.endsWith('/pres')) {
-                const remoteId = payload.id;
+                const remoteId = topic.split('/')[3]; // Extract ID from path
                 if (remoteId === myId) return;
 
-                if (!message.toString()) { // Cleanup on empty message
-                    setPeers(prev => { const n = { ...prev }; delete n[remoteId]; return n; });
+                if (!msgStr) { // Empty message = Peer Left
+                    console.log(`[Network] Peer left: ${remoteId}`);
+                    setPeers(prev => {
+                        const n = { ...prev };
+                        delete n[remoteId];
+                        return n;
+                    });
+                    if (peerConnections.current[remoteId]) {
+                        peerConnections.current[remoteId].close();
+                        delete peerConnections.current[remoteId];
+                    }
                     return;
                 }
 
+                const payload = JSON.parse(msgStr);
                 setPeers(prev => ({
                     ...prev,
                     [remoteId]: { ...prev[remoteId], ...payload }
@@ -147,6 +163,7 @@ export function useWebRTC(roomId, userName, isJoined) {
 
             // Handle Signaling
             if (topic.endsWith('/sig')) {
+                const payload = JSON.parse(msgStr);
                 const fromId = payload.from;
                 const pc = getPeerConnection(fromId);
 
@@ -179,11 +196,15 @@ export function useWebRTC(roomId, userName, isJoined) {
 
         return () => {
             console.log("[Network] Terminating connections.");
-            if (mqttRef.current) mqttRef.current.end();
+            if (mqttRef.current) {
+                // Clear presence immediately (retained message)
+                mqttRef.current.publish(`vo/room/${roomId}/${myId}/pres`, '', { retain: true, qos: 1 });
+                mqttRef.current.end();
+            }
             Object.values(peerConnections.current).forEach(pc => pc.close());
         };
         // Dependency array intentionally minimal to prevent reconnect loops
-    }, [isJoined, roomId, myId]);
+    }, [isJoined, roomId, myId, getPeerConnection]);
 
     // -----------------------------------------------------------------
     // 4. Updates (Presence & Controls)
