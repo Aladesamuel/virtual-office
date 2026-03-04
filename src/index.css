@@ -35,13 +35,47 @@ body {
   box-shadow: var(--shadow-md);
 }
 
-/* Workspace Grid */
+/* Workspace Grid & Mesh Background */
 .workspace-container {
   width: 100vw;
   height: 100vh;
   position: relative;
-  background-image: radial-gradient(circle at 2px 2px, var(--border) 1px, transparent 0);
-  background-size: 32px 32px;
+  overflow: hidden;
+  background: var(--bg-app);
+}
+
+.workspace-container::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle at 2px 2px, #cbd5e1 1px, transparent 1px);
+  background-size: 40px 40px;
+  opacity: 0.4;
+  z-index: 0;
+}
+
+.workspace-container::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  right: -50%;
+  bottom: -50%;
+  background: radial-gradient(circle at 70% 20%, rgba(79, 70, 229, 0.05) 0%, transparent 40%),
+    radial-gradient(circle at 10% 80%, rgba(79, 70, 229, 0.03) 0%, transparent 30%);
+  animation: mesh-float 20s ease-in-out infinite alternate;
+  pointer-events: none;
+  z-index: 0;
+}
+
+@keyframes mesh-float {
+  from {
+    transform: translate(0, 0) rotate(0deg);
+  }
+
+  to {
+    transform: translate(2%, 2%) rotate(2deg);
+  }
 }
 
 /* Draggable Peer Card */
