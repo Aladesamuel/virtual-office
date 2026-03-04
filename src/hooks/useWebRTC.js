@@ -27,19 +27,30 @@ export function useWebRTC(roomId, userName, isJoined) {
     const mqttRef = useRef(null);
     const localStreamRef = useRef(null);
     const peerConnections = useRef({}); // { [peerId]: RTCPeerConnection }
-    const signalsQueue = useRef({}); // Buffer for signals that arrive before PC is ready
+    const signalsQueue = useRef({}); // { [peerId]: [candidates] }
 
     // -----------------------------------------------------------------
-    // 1. Media Setup (Stable)
+    // 1. Media Setup (Stable & High Quality)
     // -----------------------------------------------------------------
     useEffect(() => {
         if (!isJoined) return;
 
-        navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+        const constraints = {
+            audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true,
+                sampleSize: 16,
+                channelCount: 1
+            },
+            video: false
+        };
+
+        navigator.mediaDevices.getUserMedia(constraints)
             .then(stream => {
                 stream.getAudioTracks().forEach(t => t.enabled = false);
                 localStreamRef.current = stream;
-                console.log("[WebRTC] Local audio stream ready.");
+                console.log("[WebRTC] HQ Audio stream ready.");
             })
             .catch(err => {
                 console.error("[WebRTC] Media Error:", err);
@@ -59,6 +70,7 @@ export function useWebRTC(roomId, userName, isJoined) {
 
         const pc = new RTCPeerConnection(pcConfig);
         peerConnections.current[remoteId] = pc;
+        signalsQueue.current[remoteId] = [];
 
         // Add local tracks to established connection
         if (localStreamRef.current) {
@@ -82,21 +94,44 @@ export function useWebRTC(roomId, userName, isJoined) {
                 audioEl = document.createElement('audio');
                 audioEl.id = `audio-${remoteId}`;
                 audioEl.autoplay = true;
+                // Important for mobile and some desktop browsers
+                audioEl.playsInline = true;
                 document.body.appendChild(audioEl);
             }
             audioEl.srcObject = event.streams[0];
+
+            // Bypass autoplay restrictions
+            audioEl.play().catch(e => {
+                console.warn("[WebRTC] Autoplay blocked, waiting for interaction", e);
+            });
+
             setPeers(prev => ({ ...prev, [remoteId]: { ...prev[remoteId], isTalking: true } }));
         };
 
         pc.onconnectionstatechange = () => {
             console.log(`[WebRTC] ${remoteId} state: ${pc.connectionState}`);
-            if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+            if (['failed', 'closed', 'disconnected'].includes(pc.connectionState)) {
                 setPeers(prev => ({ ...prev, [remoteId]: { ...prev[remoteId], isTalking: false } }));
+                const el = document.getElementById(`audio-${remoteId}`);
+                if (el) el.remove();
             }
         };
 
         return pc;
     }, [roomId, myId]);
+
+    const processQueue = useCallback(async (remoteId, pc) => {
+        const queue = signalsQueue.current[remoteId];
+        if (!queue) return;
+        while (queue.length > 0) {
+            const candidate = queue.shift();
+            try {
+                await pc.addIceCandidate(new RTCIceCandidate(candidate));
+            } catch (e) {
+                console.error("[WebRTC] Queue Error:", e);
+            }
+        }
+    }, []);
 
     // -----------------------------------------------------------------
     // 3. Network Lifecycle (MQTT Signaling)
@@ -150,6 +185,8 @@ export function useWebRTC(roomId, userName, isJoined) {
                         peerConnections.current[remoteId].close();
                         delete peerConnections.current[remoteId];
                     }
+                    const el = document.getElementById(`audio-${remoteId}`);
+                    if (el) el.remove();
                     return;
                 }
 
@@ -176,6 +213,7 @@ export function useWebRTC(roomId, userName, isJoined) {
                         client.publish(`vo/room/${roomId}/${fromId}/sig`, JSON.stringify({
                             type: 'off', from: myId, sdp: offer
                         }));
+                        await processQueue(fromId, pc);
                     } else if (payload.type === 'off') {
                         await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
                         const answer = await pc.createAnswer();
@@ -183,10 +221,16 @@ export function useWebRTC(roomId, userName, isJoined) {
                         client.publish(`vo/room/${roomId}/${fromId}/sig`, JSON.stringify({
                             type: 'ans', from: myId, sdp: answer
                         }));
+                        await processQueue(fromId, pc);
                     } else if (payload.type === 'ans') {
                         await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+                        await processQueue(fromId, pc);
                     } else if (payload.type === 'ice') {
-                        await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
+                        if (pc.remoteDescription) {
+                            await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
+                        } else {
+                            signalsQueue.current[fromId].push(payload.candidate);
+                        }
                     }
                 } catch (e) {
                     console.error("[WebRTC] Signal Error:", e);
@@ -201,10 +245,10 @@ export function useWebRTC(roomId, userName, isJoined) {
                 mqttRef.current.publish(`vo/room/${roomId}/${myId}/pres`, '', { retain: true, qos: 1 });
                 mqttRef.current.end();
             }
-            Object.values(peerConnections.current).forEach(pc => pc.close());
+            Object.values(peerConnections.current).forEach(p => p.close());
         };
         // Dependency array intentionally minimal to prevent reconnect loops
-    }, [isJoined, roomId, myId, getPeerConnection]);
+    }, [isJoined, roomId, myId, getPeerConnection, processQueue]);
 
     // -----------------------------------------------------------------
     // 4. Updates (Presence & Controls)
