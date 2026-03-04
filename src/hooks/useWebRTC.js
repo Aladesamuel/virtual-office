@@ -215,20 +215,60 @@ export function useWebRTC(roomId, userName, isJoined) {
         };
     }, [isJoined, roomId, myId, getPeerConnection]);
 
+    // 4. PRESENCE SYNC (Broadcast state changes)
+    useEffect(() => {
+        if (mqttRef.current && mqttRef.current.connected) {
+            mqttRef.current.publish(`vo/room/${roomId}/${myId}/pres`, JSON.stringify({
+                id: myId, name: userName, status: myStatus, isLocked: isLocked, isSharing: !!localScreenStream
+            }), { retain: true, qos: 1 });
+        }
+    }, [myStatus, isLocked, !!localScreenStream, roomId, myId, userName]);
+
     // -----------------------------------------------------------------
     // 4. API Functions (Collaboration Tools)
     // -----------------------------------------------------------------
+    const callPeer = useCallback((id) => {
+        const pc = getPeerConnection(id);
+        return pc.createOffer()
+            .then(o => pc.setLocalDescription(o))
+            .then(() => {
+                if (mqttRef.current) {
+                    mqttRef.current.publish(`vo/room/${roomId}/${id}/sig`, JSON.stringify({
+                        type: 'off', from: myId, sdp: pc.localDescription
+                    }));
+                }
+            });
+    }, [roomId, myId, getPeerConnection]);
+
+    const hangUpPeer = useCallback((id) => {
+        if (peerConnections.current[id]) {
+            peerConnections.current[id].close();
+            delete peerConnections.current[id];
+            setPeers(prev => ({ ...prev, [id]: { ...prev[id], isTalking: false, remoteScreenStream: null } }));
+        }
+    }, []);
+
+    // 5. AUTO-HONE SCREEN (If peer shares, and we aren't connected, we should huddle to see it)
+    useEffect(() => {
+        Object.values(peers).forEach(peer => {
+            if (peer.isSharing && !peerConnections.current[peer.id]) {
+                console.log(`[Auto] Joining ${peer.name} for screen share.`);
+                callPeer(peer.id);
+            }
+        });
+    }, [peers, callPeer]);
     const startScreenShare = useCallback(async () => {
         try {
             const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
             setLocalScreenStream(stream);
 
-            // Replace tracks for everyone we are currently talking to
-            Object.values(peerConnections.current).forEach(pc => {
+            // Broadcast tracks to EVERYONE in the room
+            Object.keys(peers).forEach(peerId => {
+                const pc = getPeerConnection(peerId);
                 stream.getVideoTracks().forEach(t => pc.addTrack(t, stream));
+
                 pc.createOffer().then(offer => pc.setLocalDescription(offer))
                     .then(() => {
-                        const peerId = Object.keys(peerConnections.current).find(k => peerConnections.current[k] === pc);
                         mqttRef.current.publish(`vo/room/${roomId}/${peerId}/sig`, JSON.stringify({
                             type: 'off', from: myId, sdp: pc.localDescription
                         }));
@@ -237,7 +277,7 @@ export function useWebRTC(roomId, userName, isJoined) {
 
             stream.getVideoTracks()[0].onended = () => stopScreenShare();
         } catch (e) { console.error("Screen share failed:", e); }
-    }, [myId, roomId]);
+    }, [myId, roomId, peers, getPeerConnection]);
 
     const stopScreenShare = useCallback(() => {
         if (localScreenStream) {
@@ -257,8 +297,7 @@ export function useWebRTC(roomId, userName, isJoined) {
         isLocked, toggleLock: () => setIsLocked(!isLocked),
         joinRequests, acceptJoinRequest: (id) => mqttRef.current.publish(`vo/room/${roomId}/${id}/sig`, JSON.stringify({ type: 'acc', from: myId })),
         declineJoinRequest: (id) => setJoinRequests(prev => prev.filter(r => r.peerId !== id)),
-        callPeer: (id) => getPeerConnection(id).createOffer().then(o => peerConnections.current[id].setLocalDescription(o)).then(() => mqttRef.current.publish(`vo/room/${roomId}/${id}/sig`, JSON.stringify({ type: 'off', from: myId, sdp: peerConnections.current[id].localDescription }))),
-        hangUpPeer: (id) => { if (peerConnections.current[id]) { peerConnections.current[id].close(); delete peerConnections.current[id]; setPeers(prev => ({ ...prev, [id]: { ...prev[id], isTalking: false } })); } },
+        callPeer, hangUpPeer,
 
         // Collab Tools
         startScreenShare, stopScreenShare, localScreenStream,
