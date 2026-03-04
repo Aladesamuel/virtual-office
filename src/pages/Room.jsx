@@ -47,7 +47,7 @@ function DraggableCard({ children, initialX, initialY, onFileDrop, peerId }) {
 
   return (
     <div
-      className={`peer-card ${isOver ? 'file-over' : ''}`}
+      className={`peer-card ${isOver ? 'file-over' : ''} ${children.props?.isSharing ? 'sharing' : ''}`}
       style={{ left: pos.x, top: pos.y, cursor: dragging ? 'grabbing' : 'grab', touchAction: 'none' }}
       onMouseDown={handleMouseDown}
       onTouchStart={handleTouchStart}
@@ -98,36 +98,6 @@ export default function Room() {
         <h1 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--primary)' }}>Virtual Office</h1>
       </div>
 
-      {/* Screen Share Modal (Peers) */}
-      {peerList.filter(p => p.remoteScreenStream).map(p => (
-        <div key={`screen-${p.id}`} className="glass screen-modal">
-          <div className="screen-header">
-            <span>{p.name}'s Screen</span>
-            <button onClick={() => { }} className="control-btn"><Monitor size={16} /></button>
-          </div>
-          <video
-            autoPlay playsInline
-            ref={el => { if (el) el.srcObject = p.remoteScreenStream; }}
-            style={{ width: '100%', height: 'auto', borderRadius: '12px' }}
-          />
-        </div>
-      ))}
-
-      {/* Local Screen Preview */}
-      {localScreenStream && (
-        <div className="glass screen-modal local-preview">
-          <div className="screen-header">
-            <span>Your Screen</span>
-            <button onClick={stopScreenShare} className="control-btn danger"><MonitorOff size={16} /></button>
-          </div>
-          <video
-            autoPlay playsInline muted
-            ref={el => { if (el) el.srcObject = localScreenStream; }}
-            style={{ width: '160px', borderRadius: '8px' }}
-          />
-        </div>
-      )}
-
       {/* Join Requests */}
       {joinRequests.length > 0 && (
         <div className="request-banner">
@@ -140,39 +110,70 @@ export default function Room() {
 
       {/* Local User Card */}
       <DraggableCard initialX={100} initialY={100}>
-        <div onClick={() => setShowStatusMenu(!showStatusMenu)}>
-          <div className={`peer-avatar ${!isMuted ? 'talking-pulse' : ''}`} style={{ cursor: 'pointer' }}>
-            <User size={30} color={!isMuted ? 'var(--primary)' : 'var(--text-muted)'} />
-            <div className={`status-indicator status-${myStatus}`} />
-          </div>
-          {showStatusMenu && (
-            <div className="status-menu">
-              {['Available', 'Busy', 'Break'].map(s => <div key={s} className="status-option" onClick={() => setMyStatus(s)}>{s}</div>)}
+        <div isSharing={!!localScreenStream}>
+          {localScreenStream ? (
+            <div className="card-screen-container">
+              <div className="screen-header">
+                <span>You are sharing</span>
+                <button onClick={stopScreenShare} className="control-btn danger small"><MonitorOff size={14} /></button>
+              </div>
+              <video
+                autoPlay playsInline muted
+                ref={el => { if (el) el.srcObject = localScreenStream; }}
+                className="card-video"
+              />
+            </div>
+          ) : (
+            <div onClick={() => setShowStatusMenu(!showStatusMenu)}>
+              <div className={`peer-avatar ${!isMuted ? 'talking-pulse' : ''}`} style={{ cursor: 'pointer' }}>
+                <User size={30} color={!isMuted ? 'var(--primary)' : 'var(--text-muted)'} />
+                <div className={`status-indicator status-${myStatus}`} />
+              </div>
+              {showStatusMenu && (
+                <div className="status-menu">
+                  {['Available', 'Busy', 'Break'].map(s => <div key={s} className="status-option" onClick={() => setMyStatus(s)}>{s}</div>)}
+                </div>
+              )}
             </div>
           )}
+          <h3 style={{ fontSize: '1rem', fontWeight: 700 }}>{name} (You)</h3>
+          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{myStatus}</p>
         </div>
-        <h3 style={{ fontSize: '1rem', fontWeight: 700 }}>{name} (You)</h3>
-        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{myStatus}</p>
       </DraggableCard>
 
       {/* Remote Peer Cards */}
       {peerList.map((peer, index) => (
         <DraggableCard key={peer.id} initialX={400 + (index * 40)} initialY={200 + (index * 40)} peerId={peer.id} onFileDrop={sendFile}>
-          <div className={`peer-avatar ${peer.isTalking ? 'talking-pulse' : ''}`}>
-            <User size={30} color={peer.isTalking ? 'var(--primary)' : 'var(--text-muted)'} />
-            <div className={`status-indicator status-${peer.status}`} />
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <h3 style={{ fontSize: '1rem', fontWeight: 700 }}>{peer.name}</h3>
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{peer.status}</p>
-            </div>
-            <div style={{ display: 'flex', gap: '4px' }}>
-              {peer.isTalking ? (
-                <button onClick={() => hangUpPeer(peer.id)} className="control-btn danger small"><PhoneOff size={16} /></button>
-              ) : (
-                <button onClick={() => callPeer(peer.id)} className="btn btn-primary small">{peer.isLocked ? <Lock size={14} /> : <PhoneCall size={14} />}</button>
-              )}
+          <div isSharing={!!peer.remoteScreenStream}>
+            {peer.remoteScreenStream ? (
+              <div className="card-screen-container">
+                <div className="screen-header">
+                  <span>{peer.name}'s Screen</span>
+                </div>
+                <video
+                  autoPlay playsInline
+                  ref={el => { if (el) el.srcObject = peer.remoteScreenStream; }}
+                  className="card-video"
+                />
+              </div>
+            ) : (
+              <div className={`peer-avatar ${peer.isTalking ? 'talking-pulse' : ''}`}>
+                <User size={30} color={peer.isTalking ? 'var(--primary)' : 'var(--text-muted)'} />
+                <div className={`status-indicator status-${peer.status}`} />
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3 style={{ fontSize: '1rem', fontWeight: 700 }}>{peer.name}</h3>
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{peer.status}</p>
+              </div>
+              <div style={{ display: 'flex', gap: '4px' }}>
+                {peer.isTalking ? (
+                  <button onClick={() => hangUpPeer(peer.id)} className="control-btn danger small"><PhoneOff size={16} /></button>
+                ) : (
+                  <button onClick={() => callPeer(peer.id)} className="btn btn-primary small">{peer.isLocked ? <Lock size={14} /> : <PhoneCall size={14} />}</button>
+                )}
+              </div>
             </div>
           </div>
         </DraggableCard>
