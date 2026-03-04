@@ -30,7 +30,6 @@ export function useWebRTC(roomId, userName, isJoined) {
 
     // New Feature States
     const [localScreenStream, setLocalScreenStream] = useState(null);
-    const [messages, setMessages] = useState([]); // {id, fromId, text, timestamp}
     const [incomingFile, setIncomingFile] = useState(null); // {name, size, progress, fromId}
 
     const mqttRef = useRef(null);
@@ -78,13 +77,7 @@ export function useWebRTC(roomId, userName, isJoined) {
         channel.onmessage = (event) => {
             const data = JSON.parse(event.data);
 
-            if (data.type === 'chat') {
-                setMessages(prev => [...prev.slice(-10), {
-                    fromId: peerId,
-                    text: data.text,
-                    timestamp: Date.now()
-                }]);
-            } else if (data.type === 'file-start') {
+            if (data.type === 'file-start') {
                 setIncomingFile({
                     name: data.name,
                     size: data.size,
@@ -225,14 +218,6 @@ export function useWebRTC(roomId, userName, isJoined) {
     // -----------------------------------------------------------------
     // 4. API Functions (Collaboration Tools)
     // -----------------------------------------------------------------
-    const sendChat = useCallback((text) => {
-        const msg = JSON.stringify({ type: 'chat', text });
-        Object.values(dataChannels.current).forEach(dc => {
-            if (dc.readyState === 'open') dc.send(msg);
-        });
-        setMessages(prev => [...prev.slice(-10), { fromId: myId, text, timestamp: Date.now() }]);
-    }, [myId]);
-
     const startScreenShare = useCallback(async () => {
         try {
             const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
@@ -276,7 +261,6 @@ export function useWebRTC(roomId, userName, isJoined) {
         hangUpPeer: (id) => { if (peerConnections.current[id]) { peerConnections.current[id].close(); delete peerConnections.current[id]; setPeers(prev => ({ ...prev, [id]: { ...prev[id], isTalking: false } })); } },
 
         // Collab Tools
-        messages, sendChat,
         startScreenShare, stopScreenShare, localScreenStream,
         sendFile: (peerId, file) => {
             const dc = dataChannels.current[peerId];

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   Mic, MicOff, UserRound, PhoneCall, PhoneOff, Lock, Unlock, Check, X,
-  Monitor, Send, FileUp, MonitorOff, User, MessageSquare
+  Monitor, FileUp, MonitorOff, User
 } from 'lucide-react';
 import { useWebRTC } from '../hooks/useWebRTC';
 
@@ -13,7 +13,7 @@ function DraggableCard({ children, initialX, initialY, onFileDrop, peerId }) {
   const offset = useRef({ x: 0, y: 0 });
 
   const handleMouseDown = e => {
-    if (e.target.closest('button, input, .chat-input')) return;
+    if (e.target.closest('button, input')) return;
     setDragging(true);
     offset.current = { x: e.clientX - pos.x, y: e.clientY - pos.y };
     document.addEventListener('mousemove', handleMouseMove);
@@ -21,7 +21,7 @@ function DraggableCard({ children, initialX, initialY, onFileDrop, peerId }) {
   };
 
   const handleTouchStart = e => {
-    if (e.target.closest('button, input, .chat-input')) return;
+    if (e.target.closest('button, input')) return;
     const t = e.touches[0];
     setDragging(true);
     offset.current = { x: t.clientX - pos.x, y: t.clientY - pos.y };
@@ -65,12 +65,11 @@ export default function Room() {
   const [joined, setJoined] = useState(false);
   const [name, setName] = useState(() => localStorage.getItem('vo_username') || '');
   const [showStatusMenu, setShowStatusMenu] = useState(false);
-  const [chatInput, setChatInput] = useState('');
 
   const {
     peers, myId, myStatus, setMyStatus, isMuted, toggleMute, isLocked, toggleLock,
     joinRequests, acceptJoinRequest, declineJoinRequest, callPeer, hangUpPeer,
-    messages, sendChat, startScreenShare, stopScreenShare, localScreenStream, sendFile, error
+    startScreenShare, stopScreenShare, localScreenStream, sendFile, error
   } = useWebRTC(roomId, name, joined);
 
   const handleJoin = (e) => { e.preventDefault(); if (name.trim()) { localStorage.setItem('vo_username', name); setJoined(true); } };
@@ -91,13 +90,6 @@ export default function Room() {
   }
 
   const peerList = Object.values(peers);
-  const handleSendChat = (e) => {
-    e.preventDefault();
-    if (chatInput.trim()) {
-      sendChat(chatInput);
-      setChatInput('');
-    }
-  };
 
   return (
     <div className="workspace-container">
@@ -148,11 +140,6 @@ export default function Room() {
 
       {/* Local User Card */}
       <DraggableCard initialX={100} initialY={100}>
-        <div className="chat-bubble-container">
-          {messages.filter(m => m.fromId === myId).slice(-1).map((m, i) => (
-            <div key={i} className="chat-bubble">{m.text}</div>
-          ))}
-        </div>
         <div onClick={() => setShowStatusMenu(!showStatusMenu)}>
           <div className={`peer-avatar ${!isMuted ? 'talking-pulse' : ''}`} style={{ cursor: 'pointer' }}>
             <User size={30} color={!isMuted ? 'var(--primary)' : 'var(--text-muted)'} />
@@ -166,27 +153,11 @@ export default function Room() {
         </div>
         <h3 style={{ fontSize: '1rem', fontWeight: 700 }}>{name} (You)</h3>
         <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{myStatus}</p>
-
-        <form onSubmit={handleSendChat} style={{ marginTop: '12px', display: 'flex', gap: '4px' }}>
-          <input
-            className="chat-input"
-            placeholder="Type a message..."
-            value={chatInput}
-            onChange={e => setChatInput(e.target.value)}
-            style={{ flex: 1, border: '1px solid var(--border)', borderRadius: '8px', padding: '4px 8px', fontSize: '0.75rem' }}
-          />
-          <button type="submit" className="control-btn" style={{ width: '28px', height: '28px' }}><Send size={14} /></button>
-        </form>
       </DraggableCard>
 
       {/* Remote Peer Cards */}
       {peerList.map((peer, index) => (
         <DraggableCard key={peer.id} initialX={400 + (index * 40)} initialY={200 + (index * 40)} peerId={peer.id} onFileDrop={sendFile}>
-          <div className="chat-bubble-container">
-            {messages.filter(m => m.fromId === peer.id).slice(-1).map((m, i) => (
-              <div key={i} className="chat-bubble peer">{m.text}</div>
-            ))}
-          </div>
           <div className={`peer-avatar ${peer.isTalking ? 'talking-pulse' : ''}`}>
             <User size={30} color={peer.isTalking ? 'var(--primary)' : 'var(--text-muted)'} />
             <div className={`status-indicator status-${peer.status}`} />
