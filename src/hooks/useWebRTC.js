@@ -1,15 +1,19 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import mqtt from 'mqtt';
 
-// Global WebRTC Configuration
+// Global WebRTC Configuration (Expanded for NAT Traversal)
 const pcConfig = {
     iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
         { urls: 'stun:stun2.l.google.com:19302' },
         { urls: 'stun:stun3.l.google.com:19302' },
-        { urls: 'stun:stun4.l.google.com:19302' }
-    ]
+        { urls: 'stun:stun4.l.google.com:19302' },
+        { urls: 'stun:stun.ekiga.net' },
+        { urls: 'stun:stun.ideasip.com' },
+        { urls: 'stun:stun.schlund.de' }
+    ],
+    iceCandidatePoolSize: 10
 };
 
 /**
@@ -51,10 +55,18 @@ export function useWebRTC(roomId, userName, isJoined) {
                 stream.getAudioTracks().forEach(t => t.enabled = false);
                 localStreamRef.current = stream;
                 console.log("[WebRTC] HQ Audio stream ready.");
+
+                // DYNAMIC INJECTION: If any peer connections were made while stream was loading, add tracks now.
+                Object.values(peerConnections.current).forEach(pc => {
+                    const sender = pc.getSenders().find(s => s.track?.kind === 'audio');
+                    if (!sender) {
+                        stream.getAudioTracks().forEach(track => pc.addTrack(track, stream));
+                    }
+                });
             })
             .catch(err => {
                 console.error("[WebRTC] Media Error:", err);
-                setError("Microphone required for Virtual Office.");
+                setError("Microphone access is required for audio calls.");
             });
 
         return () => {
@@ -100,10 +112,13 @@ export function useWebRTC(roomId, userName, isJoined) {
             }
             audioEl.srcObject = event.streams[0];
 
-            // Bypass autoplay restrictions
-            audioEl.play().catch(e => {
-                console.warn("[WebRTC] Autoplay blocked, waiting for interaction", e);
-            });
+            // Bypass autoplay restrictions - force play and add interaction backup
+            const playAudio = () => {
+                if (audioEl.paused) audioEl.play().catch(e => console.warn("[WebRTC] Autoplay pending interaction"));
+            };
+            playAudio();
+            document.addEventListener('click', playAudio, { once: true });
+            document.addEventListener('touchstart', playAudio, { once: true });
 
             setPeers(prev => ({ ...prev, [remoteId]: { ...prev[remoteId], isTalking: true } }));
         };
