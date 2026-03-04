@@ -22,7 +22,6 @@ function DraggableCard({ children, initialX, initialY }) {
 
   const handleMouseDown = (e) => {
     if (e.target.closest('button')) return;
-
     setDragging(true);
     offset.current = {
       x: e.clientX - pos.x,
@@ -32,9 +31,30 @@ function DraggableCard({ children, initialX, initialY }) {
     document.addEventListener('mouseup', handleMouseUp);
   };
 
+  const handleTouchStart = (e) => {
+    if (e.target.closest('button')) return;
+    const touch = e.touches[0];
+    setDragging(true);
+    offset.current = {
+      x: touch.clientX - pos.x,
+      y: touch.clientY - pos.y
+    };
+    document.addEventListener('touchmove', handleTouchMove, { passive: false });
+    document.addEventListener('touchend', handleTouchEnd);
+  };
+
   const handleMouseMove = (e) => {
     const newX = e.clientX - offset.current.x;
     const newY = e.clientY - offset.current.y;
+    setPos({ x: newX, y: newY });
+  };
+
+  const handleTouchMove = (e) => {
+    // Prevent scrolling while dragging
+    e.preventDefault();
+    const touch = e.touches[0];
+    const newX = touch.clientX - offset.current.x;
+    const newY = touch.clientY - offset.current.y;
     setPos({ x: newX, y: newY });
   };
 
@@ -44,11 +64,23 @@ function DraggableCard({ children, initialX, initialY }) {
     document.removeEventListener('mouseup', handleMouseUp);
   };
 
+  const handleTouchEnd = () => {
+    setDragging(false);
+    document.removeEventListener('touchmove', handleTouchMove);
+    document.removeEventListener('touchend', handleTouchEnd);
+  };
+
   return (
     <div
       className="peer-card"
-      style={{ left: pos.x, top: pos.y, cursor: dragging ? 'grabbing' : 'grab' }}
+      style={{
+        left: pos.x,
+        top: pos.y,
+        cursor: dragging ? 'grabbing' : 'grab',
+        touchAction: 'none' /* Essential for mobile drag */
+      }}
       onMouseDown={handleMouseDown}
+      onTouchStart={handleTouchStart}
     >
       {children}
     </div>
