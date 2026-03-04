@@ -108,6 +108,9 @@ export function useWebRTC(roomId, userName, isJoined) {
         if (localStreamRef.current) {
             localStreamRef.current.getTracks().forEach(t => pc.addTrack(t, localStreamRef.current));
         }
+        if (localScreenStream) {
+            localScreenStream.getTracks().forEach(t => pc.addTrack(t, localScreenStream));
+        }
 
         pc.onicecandidate = (e) => {
             if (e.candidate && mqttRef.current) {
@@ -118,8 +121,10 @@ export function useWebRTC(roomId, userName, isJoined) {
         };
 
         pc.ontrack = (event) => {
-            const stream = event.streams[0];
-            const isVideo = stream.getVideoTracks().length > 0;
+            const stream = event.streams[0] || new MediaStream([event.track]);
+            const isVideo = event.track.kind === 'video';
+
+            console.log(`[WebRTC] Track received from ${remoteId}: ${event.track.kind}`);
 
             if (isVideo) {
                 setPeers(prev => ({
@@ -143,7 +148,19 @@ export function useWebRTC(roomId, userName, isJoined) {
         };
 
         return pc;
-    }, [roomId, myId, setupDataChannel]);
+    }, [roomId, myId, setupDataChannel, localScreenStream]);
+
+    const flushCandidates = useCallback(async (peerId) => {
+        const pc = peerConnections.current[peerId];
+        if (!pc || !pc.remoteDescription || !signalsQueue.current[peerId]) return;
+
+        while (signalsQueue.current[peerId].length > 0) {
+            const candidate = signalsQueue.current[peerId].shift();
+            try {
+                await pc.addIceCandidate(new RTCIceCandidate(candidate));
+            } catch (e) { console.error("[WebRTC] ICE Error:", e); }
+        }
+    }, []);
 
     // -----------------------------------------------------------------
     // 3. Signaling & Network
@@ -196,11 +213,13 @@ export function useWebRTC(roomId, userName, isJoined) {
                         client.publish(`vo/room/${roomId}/${fromId}/sig`, JSON.stringify({ type: 'off', from: myId, sdp: offer }));
                     } else if (payload.type === 'off') {
                         await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+                        flushCandidates(fromId);
                         const answer = await pc.createAnswer();
                         await pc.setLocalDescription(answer);
                         client.publish(`vo/room/${roomId}/${fromId}/sig`, JSON.stringify({ type: 'ans', from: myId, sdp: answer }));
                     } else if (payload.type === 'ans') {
                         await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+                        flushCandidates(fromId);
                     } else if (payload.type === 'ice') {
                         if (pc.remoteDescription) await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
                         else (signalsQueue.current[fromId] = signalsQueue.current[fromId] || []).push(payload.candidate);
@@ -301,6 +320,7 @@ export function useWebRTC(roomId, userName, isJoined) {
 
         // Collab Tools
         startScreenShare, stopScreenShare, localScreenStream,
+        canScreenShare: !!navigator.mediaDevices?.getDisplayMedia,
         sendFile: (peerId, file) => {
             const dc = dataChannels.current[peerId];
             if (dc && dc.readyState === 'open') {

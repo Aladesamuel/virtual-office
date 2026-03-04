@@ -69,7 +69,7 @@ export default function Room() {
   const {
     peers, myId, myStatus, setMyStatus, isMuted, toggleMute, isLocked, toggleLock,
     joinRequests, acceptJoinRequest, declineJoinRequest, callPeer, hangUpPeer,
-    startScreenShare, stopScreenShare, localScreenStream, sendFile, error
+    startScreenShare, stopScreenShare, localScreenStream, sendFile, error, canScreenShare
   } = useWebRTC(roomId, name, joined);
 
   const handleJoin = (e) => { e.preventDefault(); if (name.trim()) { localStorage.setItem('vo_username', name); setJoined(true); } };
@@ -182,7 +182,9 @@ export default function Room() {
       {/* Control Bar */}
       <div className="control-bar">
         <button className={`control-btn ${!isMuted ? 'active' : ''}`} onClick={toggleMute}>{isMuted ? <MicOff size={22} /> : <Mic size={22} />}</button>
-        <button className={`control-btn ${localScreenStream ? 'active' : ''}`} onClick={localScreenStream ? stopScreenShare : startScreenShare}><Monitor size={22} /></button>
+        {canScreenShare && (
+          <button className={`control-btn ${localScreenStream ? 'active' : ''}`} onClick={localScreenStream ? stopScreenShare : startScreenShare}><Monitor size={22} /></button>
+        )}
         {peerList.some(p => p.isTalking) && (
           <button className={`control-btn ${isLocked ? 'danger' : ''}`} onClick={toggleLock}>{isLocked ? <Lock size={22} /> : <Unlock size={22} />}</button>
         )}
