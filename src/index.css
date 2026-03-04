@@ -1,0 +1,291 @@
+:root {
+  --primary: #4f46e5;
+  --primary-subtle: #eef2ff;
+  --bg-app: #f8fafc;
+  --bg-card: #ffffff;
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --border: #e2e8f0;
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --font-main: 'Plus Jakarta Sans', 'Inter', -apple-system, sans-serif;
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--bg-app);
+  color: var(--text-main);
+  font-family: var(--font-main);
+  overflow: hidden;
+  /* We handle scrolling in the content area */
+}
+
+/* Glass effect for light mode */
+.glass {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-md);
+}
+
+.btn {
+  padding: 0.6rem 1.2rem;
+  border-radius: 12px;
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: inherit;
+  font-size: 0.9rem;
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: white;
+}
+
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.2);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-main);
+  border: 1px solid var(--border);
+}
+
+.btn-ghost:hover {
+  background: var(--bg-app);
+}
+
+/* Draggable Workspace */
+.workspace-container {
+  width: 100vw;
+  height: 100vh;
+  position: relative;
+  background-image:
+    radial-gradient(circle at 2px 2px, var(--border) 1px, transparent 0);
+  background-size: 32px 32px;
+  cursor: grab;
+}
+
+.workspace-container:active {
+  cursor: grabbing;
+}
+
+/* Draggable Peer Card */
+.peer-card {
+  position: absolute;
+  width: 240px;
+  padding: 1.25rem;
+  border-radius: 20px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-md);
+  cursor: default;
+  transition: box-shadow 0.3s ease, transform 0.1s ease;
+  user-select: none;
+}
+
+.peer-card:hover {
+  box-shadow: var(--shadow-lg);
+}
+
+.peer-card.is-talking {
+  border: 2px solid var(--primary);
+  box-shadow: 0 0 20px rgba(79, 70, 229, 0.15);
+}
+
+/* Avatar Styling */
+.peer-avatar {
+  width: 60px;
+  height: 60px;
+  border-radius: 18px;
+  background: var(--primary-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1rem;
+  position: relative;
+  transition: transform 0.2s ease;
+}
+
+.peer-card:hover .peer-avatar {
+  transform: scale(1.05);
+}
+
+.status-indicator {
+  position: absolute;
+  bottom: -4px;
+  right: -4px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 3px solid var(--bg-card);
+}
+
+.status-Available {
+  background-color: var(--success);
+}
+
+.status-Busy {
+  background-color: var(--danger);
+}
+
+.status-Break {
+  background-color: var(--warning);
+}
+
+/* Status Menu Tooltip */
+.status-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 8px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--border);
+  padding: 4px;
+  z-index: 50;
+  min-width: 140px;
+}
+
+.status-option {
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background 0.2s;
+  font-size: 0.85rem;
+}
+
+.status-option:hover {
+  background: var(--bg-app);
+}
+
+/* Control Bar Refined */
+.control-bar {
+  position: fixed;
+  bottom: 1.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 100;
+}
+
+.control-btn {
+  width: 48px;
+  height: 48px;
+  border-radius: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  background: transparent;
+  color: var(--text-muted);
+  transition: all 0.2s;
+}
+
+.control-btn:hover {
+  background: var(--bg-app);
+  color: var(--text-main);
+}
+
+.control-btn.active {
+  background: var(--primary-subtle);
+  color: var(--primary);
+}
+
+.control-btn.danger {
+  color: var(--danger);
+}
+
+.control-btn.danger:hover {
+  background: #fee2e2;
+}
+
+/* Animations */
+@keyframes pulse-ring {
+  0% {
+    transform: scale(.95);
+    opacity: 0.5;
+  }
+
+  50% {
+    transform: scale(1.1);
+    opacity: 0.2;
+  }
+
+  100% {
+    transform: scale(1.2);
+    opacity: 0;
+  }
+}
+
+.talking-pulse::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 18px;
+  border: 2px solid var(--primary);
+  animation: pulse-ring 2s infinite ease-out;
+}
+
+/* Banner */
+.request-banner {
+  position: fixed;
+  top: 1.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: white;
+  padding: 0.75rem 1.25rem;
+  border-radius: 16px;
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  z-index: 200;
+  animation: slideDown 0.4s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    transform: translate(-50%, -100%);
+    opacity: 0;
+  }
+
+  to {
+    transform: translate(-50%, 0);
+    opacity: 1;
+  }
+}
