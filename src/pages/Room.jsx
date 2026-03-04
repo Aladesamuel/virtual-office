@@ -1,86 +1,59 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import {
-  Mic,
-  MicOff,
-  UserRound,
-  PhoneCall,
-  PhoneOff,
-  Lock,
-  Unlock,
-  Check,
-  X,
-  Settings,
-  MoreVertical
+  Mic, MicOff, UserRound, PhoneCall, PhoneOff, Lock, Unlock, Check, X,
+  Monitor, Send, FileUp, MonitorOff, User, MessageSquare
 } from 'lucide-react';
 import { useWebRTC } from '../hooks/useWebRTC';
 
-function DraggableCard({ children, initialX, initialY }) {
+function DraggableCard({ children, initialX, initialY, onFileDrop, peerId }) {
   const [pos, setPos] = useState({ x: initialX, y: initialY });
   const [dragging, setDragging] = useState(false);
+  const [isOver, setIsOver] = useState(false);
   const offset = useRef({ x: 0, y: 0 });
 
-  const handleMouseDown = (e) => {
-    if (e.target.closest('button')) return;
+  const handleMouseDown = e => {
+    if (e.target.closest('button, input, .chat-input')) return;
     setDragging(true);
-    offset.current = {
-      x: e.clientX - pos.x,
-      y: e.clientY - pos.y
-    };
+    offset.current = { x: e.clientX - pos.x, y: e.clientY - pos.y };
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
   };
 
-  const handleTouchStart = (e) => {
-    if (e.target.closest('button')) return;
-    const touch = e.touches[0];
+  const handleTouchStart = e => {
+    if (e.target.closest('button, input, .chat-input')) return;
+    const t = e.touches[0];
     setDragging(true);
-    offset.current = {
-      x: touch.clientX - pos.x,
-      y: touch.clientY - pos.y
-    };
+    offset.current = { x: t.clientX - pos.x, y: t.clientY - pos.y };
     document.addEventListener('touchmove', handleTouchMove, { passive: false });
     document.addEventListener('touchend', handleTouchEnd);
   };
 
-  const handleMouseMove = (e) => {
-    const newX = e.clientX - offset.current.x;
-    const newY = e.clientY - offset.current.y;
-    setPos({ x: newX, y: newY });
-  };
+  const handleMouseMove = e => setPos({ x: e.clientX - offset.current.x, y: e.clientY - offset.current.y });
+  const handleTouchMove = e => { e.preventDefault(); const t = e.touches[0]; setPos({ x: t.clientX - offset.current.x, y: t.clientY - offset.current.y }); };
+  const handleMouseUp = () => { setDragging(false); document.removeEventListener('mousemove', handleMouseMove); document.removeEventListener('mouseup', handleMouseUp); };
+  const handleTouchEnd = () => { setDragging(false); document.removeEventListener('touchmove', handleTouchMove); document.removeEventListener('touchend', handleTouchEnd); };
 
-  const handleTouchMove = (e) => {
-    // Prevent scrolling while dragging
+  // File Drop Handlers
+  const onDragOver = e => { e.preventDefault(); setIsOver(true); };
+  const onDragLeave = () => setIsOver(false);
+  const onDrop = e => {
     e.preventDefault();
-    const touch = e.touches[0];
-    const newX = touch.clientX - offset.current.x;
-    const newY = touch.clientY - offset.current.y;
-    setPos({ x: newX, y: newY });
-  };
-
-  const handleMouseUp = () => {
-    setDragging(false);
-    document.removeEventListener('mousemove', handleMouseMove);
-    document.removeEventListener('mouseup', handleMouseUp);
-  };
-
-  const handleTouchEnd = () => {
-    setDragging(false);
-    document.removeEventListener('touchmove', handleTouchMove);
-    document.removeEventListener('touchend', handleTouchEnd);
+    setIsOver(false);
+    if (!onFileDrop || !peerId) return;
+    const file = e.dataTransfer.files[0];
+    if (file) onFileDrop(peerId, file);
   };
 
   return (
     <div
-      className="peer-card"
-      style={{
-        left: pos.x,
-        top: pos.y,
-        cursor: dragging ? 'grabbing' : 'grab',
-        touchAction: 'none' /* Essential for mobile drag */
-      }}
+      className={`peer-card ${isOver ? 'file-over' : ''}`}
+      style={{ left: pos.x, top: pos.y, cursor: dragging ? 'grabbing' : 'grab', touchAction: 'none' }}
       onMouseDown={handleMouseDown}
       onTouchStart={handleTouchStart}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
     >
       {children}
     </div>
@@ -92,52 +65,25 @@ export default function Room() {
   const [joined, setJoined] = useState(false);
   const [name, setName] = useState(() => localStorage.getItem('vo_username') || '');
   const [showStatusMenu, setShowStatusMenu] = useState(false);
+  const [chatInput, setChatInput] = useState('');
 
   const {
-    peers,
-    myStatus,
-    setMyStatus,
-    isMuted,
-    toggleMute,
-    isLocked,
-    toggleLock,
-    joinRequests,
-    acceptJoinRequest,
-    declineJoinRequest,
-    callPeer,
-    hangUpPeer,
-    error,
+    peers, myId, myStatus, setMyStatus, isMuted, toggleMute, isLocked, toggleLock,
+    joinRequests, acceptJoinRequest, declineJoinRequest, callPeer, hangUpPeer,
+    messages, sendChat, startScreenShare, stopScreenShare, localScreenStream, sendFile, error
   } = useWebRTC(roomId, name, joined);
 
-  const handleJoin = (e) => {
-    e.preventDefault();
-    if (name.trim()) {
-      localStorage.setItem('vo_username', name);
-      setJoined(true);
-    }
-  };
+  const handleJoin = (e) => { e.preventDefault(); if (name.trim()) { localStorage.setItem('vo_username', name); setJoined(true); } };
 
   if (!joined) {
     return (
       <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-app)' }}>
         <div className="glass" style={{ width: '100%', maxWidth: '400px', padding: '3rem', borderRadius: '32px', textAlign: 'center' }}>
-          <div className="peer-avatar" style={{ margin: '0 auto 2rem auto', width: '80px', height: '80px', background: 'var(--primary-subtle)' }}>
-            <UserRound size={40} color="var(--primary)" />
-          </div>
+          <div className="peer-avatar" style={{ margin: '0 auto 2rem auto', width: '80px', height: '80px', background: 'var(--primary-subtle)' }}><UserRound size={40} color="var(--primary)" /></div>
           <h2 style={{ fontSize: '1.75rem', fontWeight: 800, marginBottom: '0.5rem' }}>Enter Workspace</h2>
-          <p style={{ color: 'var(--text-muted)', marginBottom: '2rem' }}>Ready to collaborate in <strong>{roomId}</strong>?</p>
           <form onSubmit={handleJoin}>
-            <input
-              type="text"
-              placeholder="Display name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              style={{ width: '100%', border: '1px solid var(--border)', padding: '1rem', borderRadius: '16px', marginBottom: '1.5rem', outline: 'none', fontSize: '1rem', textAlign: 'center' }}
-              autoFocus
-            />
-            <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '1rem' }}>
-              Join Room
-            </button>
+            <input type="text" placeholder="Display name" value={name} onChange={e => setName(e.target.value)} style={{ width: '100%', border: '1px solid var(--border)', padding: '1rem', borderRadius: '16px', marginBottom: '1.5rem', textAlign: 'center' }} autoFocus />
+            <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}>Join Room</button>
           </form>
         </div>
       </div>
@@ -145,19 +91,48 @@ export default function Room() {
   }
 
   const peerList = Object.values(peers);
-  const isAnyPeerTalking = peerList.some(p => p.isTalking);
+  const handleSendChat = (e) => {
+    e.preventDefault();
+    if (chatInput.trim()) {
+      sendChat(chatInput);
+      setChatInput('');
+    }
+  };
 
   return (
     <div className="workspace-container">
-      {/* Top Navigation */}
+      {/* Top Nav */}
       <div style={{ position: 'fixed', top: '1.5rem', left: '1.5rem', zIndex: 10 }}>
         <h1 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--primary)' }}>Virtual Office</h1>
       </div>
 
-      {/* Error Feedback */}
-      {error && (
-        <div style={{ position: 'fixed', top: '5rem', left: '50%', transform: 'translateX(-50%)', background: '#fee2e2', color: 'var(--danger)', padding: '0.75rem 1.5rem', borderRadius: '12px', zIndex: 50, fontWeight: 600 }}>
-          {error}
+      {/* Screen Share Modal (Peers) */}
+      {peerList.filter(p => p.remoteScreenStream).map(p => (
+        <div key={`screen-${p.id}`} className="glass screen-modal">
+          <div className="screen-header">
+            <span>{p.name}'s Screen</span>
+            <button onClick={() => { }} className="control-btn"><Monitor size={16} /></button>
+          </div>
+          <video
+            autoPlay playsInline
+            ref={el => { if (el) el.srcObject = p.remoteScreenStream; }}
+            style={{ width: '100%', height: 'auto', borderRadius: '12px' }}
+          />
+        </div>
+      ))}
+
+      {/* Local Screen Preview */}
+      {localScreenStream && (
+        <div className="glass screen-modal local-preview">
+          <div className="screen-header">
+            <span>Your Screen</span>
+            <button onClick={stopScreenShare} className="control-btn danger"><MonitorOff size={16} /></button>
+          </div>
+          <video
+            autoPlay playsInline muted
+            ref={el => { if (el) el.srcObject = localScreenStream; }}
+            style={{ width: '160px', borderRadius: '8px' }}
+          />
         </div>
       )}
 
@@ -166,102 +141,81 @@ export default function Room() {
         <div className="request-banner">
           <Check size={20} color="var(--success)" />
           <span><strong>{joinRequests[0].peerName}</strong> is knocking...</span>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button onClick={() => acceptJoinRequest(joinRequests[0].peerId)} className="btn btn-primary" style={{ padding: '0.4rem 0.8rem' }}>Accept</button>
-            <button onClick={() => declineJoinRequest(joinRequests[0].peerId)} className="btn btn-ghost" style={{ padding: '0.4rem 0.8rem' }}>Decline</button>
-          </div>
+          <button onClick={() => acceptJoinRequest(joinRequests[0].peerId)} className="btn btn-primary">Accept</button>
+          <button onClick={() => declineJoinRequest(joinRequests[0].peerId)} className="btn btn-ghost">Decline</button>
         </div>
       )}
 
-      {/* Local User Card (Draggable) */}
+      {/* Local User Card */}
       <DraggableCard initialX={100} initialY={100}>
-        {isLocked && <div style={{ position: 'absolute', top: '12px', right: '12px', color: 'var(--danger)' }}><Lock size={14} /></div>}
-        <div style={{ position: 'relative' }} onClick={() => setShowStatusMenu(!showStatusMenu)}>
+        <div className="chat-bubble-container">
+          {messages.filter(m => m.fromId === myId).slice(-1).map((m, i) => (
+            <div key={i} className="chat-bubble">{m.text}</div>
+          ))}
+        </div>
+        <div onClick={() => setShowStatusMenu(!showStatusMenu)}>
           <div className={`peer-avatar ${!isMuted ? 'talking-pulse' : ''}`} style={{ cursor: 'pointer' }}>
-            <UserRound size={30} color={!isMuted ? 'var(--primary)' : 'var(--text-muted)'} />
+            <User size={30} color={!isMuted ? 'var(--primary)' : 'var(--text-muted)'} />
             <div className={`status-indicator status-${myStatus}`} />
           </div>
-
           {showStatusMenu && (
             <div className="status-menu">
-              {['Available', 'Busy', 'Break'].map(s => (
-                <div key={s} className="status-option" onClick={(e) => { e.stopPropagation(); setMyStatus(s); setShowStatusMenu(false); }}>
-                  <div className={`status-dot status-${s}`} style={{ width: 8, height: 8, borderRadius: '50%' }} />
-                  {s}
-                </div>
-              ))}
+              {['Available', 'Busy', 'Break'].map(s => <div key={s} className="status-option" onClick={() => setMyStatus(s)}>{s}</div>)}
             </div>
           )}
         </div>
-        <h3 style={{ fontSize: '1rem', fontWeight: 700 }}>{name}</h3>
-        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>You • {myStatus}</p>
+        <h3 style={{ fontSize: '1rem', fontWeight: 700 }}>{name} (You)</h3>
+        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{myStatus}</p>
+
+        <form onSubmit={handleSendChat} style={{ marginTop: '12px', display: 'flex', gap: '4px' }}>
+          <input
+            className="chat-input"
+            placeholder="Type a message..."
+            value={chatInput}
+            onChange={e => setChatInput(e.target.value)}
+            style={{ flex: 1, border: '1px solid var(--border)', borderRadius: '8px', padding: '4px 8px', fontSize: '0.75rem' }}
+          />
+          <button type="submit" className="control-btn" style={{ width: '28px', height: '28px' }}><Send size={14} /></button>
+        </form>
       </DraggableCard>
 
-      {/* Remote Peers (Draggable) */}
+      {/* Remote Peer Cards */}
       {peerList.map((peer, index) => (
-        <DraggableCard key={peer.id} initialX={400 + (index * 40)} initialY={200 + (index * 40)}>
-          <div style={{ position: 'relative' }}>
-            <div className={`peer-avatar ${peer.isTalking ? 'talking-pulse' : ''}`}>
-              <UserRound size={30} color={peer.isTalking ? 'var(--primary)' : 'var(--text-muted)'} />
-              <div className={`status-indicator status-${peer.status}`} />
-            </div>
+        <DraggableCard key={peer.id} initialX={400 + (index * 40)} initialY={200 + (index * 40)} peerId={peer.id} onFileDrop={sendFile}>
+          <div className="chat-bubble-container">
+            {messages.filter(m => m.fromId === peer.id).slice(-1).map((m, i) => (
+              <div key={i} className="chat-bubble peer">{m.text}</div>
+            ))}
+          </div>
+          <div className={`peer-avatar ${peer.isTalking ? 'talking-pulse' : ''}`}>
+            <User size={30} color={peer.isTalking ? 'var(--primary)' : 'var(--text-muted)'} />
+            <div className={`status-indicator status-${peer.status}`} />
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
               <h3 style={{ fontSize: '1rem', fontWeight: 700 }}>{peer.name}</h3>
               <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{peer.status}</p>
             </div>
-
-            <div>
+            <div style={{ display: 'flex', gap: '4px' }}>
               {peer.isTalking ? (
-                <button onClick={() => hangUpPeer(peer.id)} className="control-btn danger" style={{ background: '#fee2e2' }}>
-                  <PhoneOff size={18} />
-                </button>
+                <button onClick={() => hangUpPeer(peer.id)} className="control-btn danger small"><PhoneOff size={16} /></button>
               ) : (
-                <button
-                  onClick={() => callPeer(peer.id)}
-                  disabled={peer.status === 'Busy'}
-                  className="btn btn-primary"
-                  style={{ padding: '0.5rem', borderRadius: '12px', opacity: peer.status === 'Busy' ? 0.3 : 1 }}
-                >
-                  {peer.isLocked ? <Lock size={18} /> : <PhoneCall size={18} />}
-                </button>
+                <button onClick={() => callPeer(peer.id)} className="btn btn-primary small">{peer.isLocked ? <Lock size={14} /> : <PhoneCall size={14} />}</button>
               )}
             </div>
           </div>
         </DraggableCard>
       ))}
 
-      {/* Bottom Control Bar */}
+      {/* Control Bar */}
       <div className="control-bar">
-        <button className="control-btn" style={{ background: isMuted ? 'transparent' : 'var(--primary-subtle)', color: isMuted ? 'var(--text-muted)' : 'var(--primary)' }} onClick={toggleMute}>
-          {isMuted ? <MicOff size={22} /> : <Mic size={22} />}
-        </button>
-
-        {isAnyPeerTalking && (
-          <button className="control-btn" style={{ background: isLocked ? '#fee2e2' : 'transparent', color: isLocked ? 'var(--danger)' : 'var(--text-muted)' }} onClick={toggleLock}>
-            {isLocked ? <Lock size={22} /> : <Unlock size={22} />}
-          </button>
+        <button className={`control-btn ${!isMuted ? 'active' : ''}`} onClick={toggleMute}>{isMuted ? <MicOff size={22} /> : <Mic size={22} />}</button>
+        <button className={`control-btn ${localScreenStream ? 'active' : ''}`} onClick={localScreenStream ? stopScreenShare : startScreenShare}><Monitor size={22} /></button>
+        {peerList.some(p => p.isTalking) && (
+          <button className={`control-btn ${isLocked ? 'danger' : ''}`} onClick={toggleLock}>{isLocked ? <Lock size={22} /> : <Unlock size={22} />}</button>
         )}
-
         <div style={{ width: '1px', height: '24px', background: 'var(--border)', margin: '0 8px' }} />
-
-        <div style={{ display: 'flex', gap: '4px', padding: '0 8px' }}>
-          {['Available', 'Busy', 'Break'].map(s => (
-            <button
-              key={s}
-              onClick={() => setMyStatus(s)}
-              style={{
-                width: '10px', height: '10px', borderRadius: '50%', border: 'none', cursor: 'pointer',
-                background: s === 'Available' ? 'var(--success)' : (s === 'Busy' ? 'var(--danger)' : 'var(--warning)'),
-                transform: myStatus === s ? 'scale(1.3)' : 'scale(1)',
-                transition: 'all 0.2s',
-                padding: 0
-              }}
-              title={s}
-            />
-          ))}
-        </div>
+        {['Available', 'Busy', 'Break'].map(s => <button key={s} onClick={() => setMyStatus(s)} style={{ width: '12px', height: '12px', borderRadius: '50%', background: `var(--${s === 'Available' ? 'success' : (s === 'Busy' ? 'danger' : 'warning')})`, transform: myStatus === s ? 'scale(1.4)' : 'scale(1)', transition: '0.2s', border: 'none', cursor: 'pointer' }} title={s} />)}
       </div>
     </div>
   );
