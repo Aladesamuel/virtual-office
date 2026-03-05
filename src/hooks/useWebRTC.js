@@ -19,7 +19,6 @@ export function useWebRTC(roomId, userName, isJoined) {
     });
     const [myStatus, setMyStatus] = useState('Available');
     const [isMuted, setIsMuted] = useState(false);
-    const [isVideoEnabled, setIsVideoEnabled] = useState(false);
     const [isLocked, setIsLocked] = useState(false);
     const [joinRequests, setJoinRequests] = useState([]);
 
@@ -29,13 +28,12 @@ export function useWebRTC(roomId, userName, isJoined) {
     const signalsQueue = useRef({});
     const callbacksRef = useRef({});
 
-    // 1. Media Management
+    // 1. Audio-Only Media Management
     useEffect(() => {
         if (!isJoined) return;
 
         navigator.mediaDevices.getUserMedia({
-            audio: { echoCancellation: true, noiseSuppression: true },
-            video: isVideoEnabled
+            audio: { echoCancellation: true, noiseSuppression: true }
         })
             .then(stream => {
                 localStreamRef.current = stream;
@@ -57,7 +55,7 @@ export function useWebRTC(roomId, userName, isJoined) {
                 localStreamRef.current.getTracks().forEach(t => t.stop());
             }
         };
-    }, [isJoined, isVideoEnabled]);
+    }, [isJoined]);
 
     // 2. Peer Connection Factory
     const getPeerConnection = useCallback((remoteId) => {
@@ -252,7 +250,6 @@ export function useWebRTC(roomId, userName, isJoined) {
     return {
         peers, myId, myStatus, setMyStatus,
         isMuted, setIsMuted: (v) => { setIsMuted(v); if (localStreamRef.current) localStreamRef.current.getAudioTracks().forEach(t => t.enabled = !v); },
-        isVideoEnabled, setIsVideoEnabled,
         isLocked, setIsLocked,
         joinRequests, acceptRequest: (id) => { setJoinRequests(r => r.filter(x => x.id !== id)); callPeer(id); },
         callPeer, knockPeer, hangUp,

@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import {
-  User, Mic, MicOff, Phone, LogOut, Video, VideoOff,
-  Lock, Unlock, Hand, Camera, CameraOff, Bell, UserRound
+  User, Mic, MicOff, Phone, LogOut,
+  Lock, Unlock, Hand, Bell, UserRound
 } from 'lucide-react';
 import { useWebRTC } from '../hooks/useWebRTC';
 
@@ -15,7 +15,6 @@ export default function Room() {
   const {
     peers, myId, myStatus, setMyStatus,
     isMuted, setIsMuted,
-    isVideoEnabled, setIsVideoEnabled,
     isLocked, setIsLocked,
     joinRequests, acceptRequest,
     callPeer, knockPeer, hangUp,
@@ -89,15 +88,11 @@ export default function Room() {
       </div>
 
       {/* Sleek Fixed Header */}
-      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, padding: '1.25rem 2rem', zIndex: 50, display: 'flex', justifyContent: 'space-between', alignItems: 'center', pointerEvents: 'none' }}>
-        <h1 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--primary)', letterSpacing: '-0.02em', pointerEvents: 'auto' }}>
-          OFFICE <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>/ {roomId}</span>
+      <div className="room-header">
+        <h1 className="room-header-title">
+          OFFICE <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>/ {roomId.slice(0, 8)}</span>
         </h1>
-        <div style={{ pointerEvents: 'auto' }}>
-          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--success)', background: 'white', padding: '4px 12px', borderRadius: '99px', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
-            ● ONLINE
-          </span>
-        </div>
+        <span className="room-header-status">● ONLINE</span>
       </div>
 
       {/* Office Floor (Grid) */}
@@ -105,55 +100,25 @@ export default function Room() {
         {/* Your Tile */}
         <div className="member-tile">
           <div className={`avatar-container ${localStream && !isMuted ? 'talking-pulse' : ''}`}>
-            <User size={30} color="var(--primary)" />
+            <User size={28} color="var(--primary)" />
             <div className={`status-dot status-${myStatus}`} />
           </div>
-          <p className="member-name">{name} (You)</p>
+          <p className="member-name">{name}</p>
           <p className="member-status-text">{myStatus}</p>
-
-          <div style={{ marginTop: '1rem', width: '100%', aspectRatio: '16/9', overflow: 'hidden', borderRadius: '16px', border: '1px solid var(--border)', background: '#0f172a' }}>
-            {isVideoEnabled && localStream && (
-              <video
-                autoPlay playsInline muted
-                ref={el => { if (el) el.srcObject = localStream; }}
-                style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }}
-              />
-            )}
-            {(!isVideoEnabled || !localStream) && (
-              <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-app)' }}>
-                <CameraOff size={24} color="var(--text-muted)" opacity={0.3} />
-              </div>
-            )}
-          </div>
         </div>
 
         {/* Peer Tiles */}
         {peerList.map(peer => (
           <div key={peer.id} className="member-tile">
             <div className={`avatar-container ${peer.isTalking ? 'talking-pulse' : ''}`}>
-              <User size={30} color={peer.isTalking ? 'var(--primary)' : 'var(--text-muted)'} />
+              <User size={28} color={peer.isTalking ? 'var(--primary)' : 'var(--text-muted)'} />
               <div className={`status-dot status-${peer.status || 'Available'}`} />
-              {peer.isLocked && <div style={{ position: 'absolute', top: -5, right: -5, background: 'var(--oncall)', color: 'white', padding: '2px', borderRadius: '50%' }}><Lock size={10} /></div>}
+              {peer.isLocked && <div style={{ position: 'absolute', top: -8, right: -8, background: 'var(--oncall)', color: 'white', padding: '4px', borderRadius: '50%', display: 'flex' }}><Lock size={12} /></div>}
             </div>
             <p className="member-name">{peer.name}</p>
-            <p className="member-status-text">{peer.status || 'Available'} {peer.isMuted ? '(Muted)' : ''}</p>
+            <p className="member-status-text">{peer.status || 'Available'}</p>
 
-            {/* Video Feed */}
-            <div style={{ marginTop: '1rem', width: '100%', aspectRatio: '16/9', overflow: 'hidden', borderRadius: '16px', border: '1px solid var(--border)', background: '#0f172a' }}>
-              {peer.remoteStream && peer.remoteStream.getVideoTracks().length > 0 ? (
-                <video
-                  autoPlay playsInline
-                  ref={el => { if (el) el.srcObject = peer.remoteStream; }}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                />
-              ) : (
-                <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-app)' }}>
-                  <VideoOff size={24} color="var(--text-muted)" opacity={0.3} />
-                </div>
-              )}
-            </div>
-
-            <div style={{ width: '100%' }}>
+            <div style={{ width: '100%', marginTop: '0.75rem' }}>
               {peer.status === 'OnCall' ? (
                 <button onClick={() => hangUp(peer.id)} className="call-btn danger">
                   <Phone size={14} /> Hang Up
@@ -179,69 +144,54 @@ export default function Room() {
 
       {/* Join Requests Banner (Notification Style) */}
       {joinRequests.length > 0 && (
-        <div style={{
-          position: 'fixed', bottom: '6.5rem', left: '50%', transform: 'translateX(-50%)',
-          width: '90%', maxWidth: '380px', background: 'rgba(15, 23, 42, 0.95)', backdropFilter: 'blur(20px)',
-          color: 'white', padding: '1.25rem', borderRadius: '24px',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          zIndex: 110, boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)',
-          border: '1px solid rgba(255,255,255,0.1)'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ width: '40px', height: '40px', background: 'var(--primary)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="knock-notification">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
+            <div style={{ width: '40px', height: '40px', background: 'var(--primary)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <Hand size={20} />
             </div>
-            <div>
-              <p style={{ fontSize: '0.85rem', fontWeight: 700 }}>{joinRequests[0].name}</p>
-              <p style={{ fontSize: '0.75rem', opacity: 0.7 }}>is knocking...</p>
+            <div style={{ minWidth: 0 }}>
+              <p style={{ fontSize: '0.85rem', fontWeight: 700, margin: 0 }}>{joinRequests[0].name}</p>
+              <p style={{ fontSize: '0.75rem', opacity: 0.7, margin: '2px 0 0 0' }}>is knocking...</p>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button onClick={() => acceptRequest(joinRequests[0].id)} style={{ background: 'white', color: 'var(--text-main)', padding: '8px 16px', borderRadius: '12px', border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: '0.8rem' }}>Accept</button>
-            <button onClick={() => setJoinRequests(prev => prev.slice(1))} style={{ background: 'rgba(255,255,255,0.1)', color: 'white', padding: '8px 12px', borderRadius: '12px', border: 'none', fontWeight: 600, cursor: 'pointer', fontSize: '0.8rem' }}>Ignore</button>
+          <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+            <button onClick={() => acceptRequest(joinRequests[0].id)} style={{ background: 'white', color: 'var(--text-main)', padding: '8px 12px', borderRadius: '10px', border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>Accept</button>
+            <button onClick={() => setJoinRequests(prev => prev.slice(1))} style={{ background: 'rgba(255,255,255,0.1)', color: 'white', padding: '8px 10px', borderRadius: '10px', border: 'none', fontWeight: 600, cursor: 'pointer', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>Ignore</button>
           </div>
         </div>
       )}
 
       {/* Floating Control Bar */}
       <div className="control-bar">
-        <div className="controls-group">
-          <button
-            className={`icon-btn ${!isMuted ? 'active' : ''}`}
-            onClick={() => setIsMuted(!isMuted)}
-            title={isMuted ? "Unmute" : "Mute"}
-          >
-            {isMuted ? <MicOff size={18} /> : <Mic size={18} />}
-          </button>
-          <button
-            className={`icon-btn ${isVideoEnabled ? 'active' : ''}`}
-            onClick={() => setIsVideoEnabled(!isVideoEnabled)}
-            title={isVideoEnabled ? "Disable Video" : "Enable Video"}
-          >
-            {isVideoEnabled ? <Camera size={18} /> : <CameraOff size={18} />}
-          </button>
-          <button
-            className={`icon-btn ${isLocked ? 'active' : ''}`}
-            onClick={() => setIsLocked(!isLocked)}
-            title={isLocked ? "Unlock Space" : "Lock Space"}
-          >
-            {isLocked ? <Lock size={18} /> : <Unlock size={18} />}
-          </button>
-        </div>
+        <button
+          className={`icon-btn ${!isMuted ? 'active' : ''}`}
+          onClick={() => setIsMuted(!isMuted)}
+          title={isMuted ? "Unmute" : "Mute"}
+        >
+          {isMuted ? <MicOff size={18} /> : <Mic size={18} />}
+        </button>
 
         <div className="status-pill-group">
           {['Available', 'Busy', 'Away'].map(s => (
             <button
               key={s}
               onClick={() => setMyStatus(s)}
-              style={{ padding: '0.4rem 0.8rem', borderRadius: '99px', border: 'none', background: myStatus === s ? 'var(--primary-subtle)' : 'transparent', color: myStatus === s ? 'var(--primary)' : 'var(--text-muted)', fontWeight: 700, cursor: 'pointer', fontSize: '0.75rem', transition: '0.2s' }}
+              className={`status-pill ${myStatus === s ? 'active' : ''}`}
             >
               {s}
             </button>
           ))}
         </div>
 
-        <button className="icon-btn" onClick={() => setJoined(false)} style={{ color: 'var(--danger)', border: 'none' }}>
+        <button
+          className={`icon-btn ${isLocked ? 'active' : ''}`}
+          onClick={() => setIsLocked(!isLocked)}
+          title={isLocked ? "Unlock Space" : "Lock Space"}
+        >
+          {isLocked ? <Lock size={18} /> : <Unlock size={18} />}
+        </button>
+
+        <button className="icon-btn danger" onClick={() => setJoined(false)} title="Leave">
           <LogOut size={18} />
         </button>
       </div>

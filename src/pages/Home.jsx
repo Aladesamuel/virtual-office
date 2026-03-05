@@ -35,18 +35,18 @@ export default function Home() {
             Real-time Audio Workspace
           </div>
 
-          <h1 style={{ fontSize: '4.5rem', lineHeight: 1.05, marginBottom: '2rem', fontWeight: 800, letterSpacing: '-0.04em' }}>
+          <h1 style={{ fontSize: 'clamp(2rem, 8vw, 4.5rem)', lineHeight: 1.1, marginBottom: '2rem', fontWeight: 800, letterSpacing: '-0.04em' }}>
             The virtual space for <span style={{ color: 'var(--primary)' }}>fast teams.</span>
           </h1>
 
           <p style={{
             color: 'var(--text-muted)',
-            fontSize: '1.25rem',
+            fontSize: 'clamp(1rem, 2.5vw, 1.25rem)',
             lineHeight: '1.6',
             marginBottom: '3rem',
             maxWidth: '520px'
           }}>
-            Deep work doesn't have to be lonely. Jump in and out of audio huddles with zero frictions—no calls to schedule, just direct P2P connection.
+            Talk to teammates like they're right next to you. No meetings, no friction—just click and speak.
           </p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
