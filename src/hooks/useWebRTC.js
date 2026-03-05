@@ -13,7 +13,7 @@ const pcConfig = {
     iceCandidatePoolSize: 10
 };
 
-export function useWebRTC(roomId, userName, isJoined, callbacks = {}) {
+export function useWebRTC(roomId, userName, isJoined, peerPositions = {}, callbacks = {}) {
     const callbacksRef = useRef(callbacks);
     useEffect(() => { callbacksRef.current = callbacks; }, [callbacks]);
 
@@ -31,6 +31,8 @@ export function useWebRTC(roomId, userName, isJoined, callbacks = {}) {
     const [isMuted, setIsMuted] = useState(true);
     const [isLocked, setIsLocked] = useState(false);
     const [joinRequests, setJoinRequests] = useState([]);
+    const [wbLines, setWbLines] = useState([]); // Whiteboard lines
+    const [isWhiteboardOpen, setIsWhiteboardOpen] = useState(false);
 
     const [localScreenStream, setLocalScreenStream] = useState(null);
     const [localVideoStream, setLocalVideoStream] = useState(null);
@@ -89,11 +91,23 @@ export function useWebRTC(roomId, userName, isJoined, callbacks = {}) {
         };
     }, [isJoined, isVideoEnabled]);
 
+    const sendWBData = useCallback((line) => {
+        Object.values(dataChannels.current).forEach(dc => {
+            if (dc.readyState === 'open') {
+                dc.send(JSON.stringify({ type: 'draw', line }));
+            }
+        });
+    }, []);
+
     const setupDataChannel = useCallback((peerId, channel) => {
         channel.onmessage = (event) => {
             const data = JSON.parse(event.data);
             if (data.type === 'file-start') {
                 setIncomingFile({ name: data.name, size: data.size, progress: 0, fromId: peerId });
+            } else if (data.type === 'chat') {
+                if (callbacksRef.current.onMessage) callbacksRef.current.onMessage(peerId, data.text);
+            } else if (data.type === 'draw') {
+                setWbLines(prev => [...prev, data.line]);
             }
         };
         dataChannels.current[peerId] = channel;
@@ -148,6 +162,8 @@ export function useWebRTC(roomId, userName, isJoined, callbacks = {}) {
             }
         };
 
+        const pannerRef = { current: null };
+
         pc.ontrack = (event) => {
             const stream = event.streams[0] || new MediaStream([event.track]);
             const isVideo = event.track.kind === 'video';
@@ -168,25 +184,54 @@ export function useWebRTC(roomId, userName, isJoined, callbacks = {}) {
                 };
             });
 
-            // Remote VAD
+            // Spatial Audio & Remote VAD
             if (!isVideo) {
                 try {
                     const AudioCtx = window.AudioContext || window.webkitAudioContext;
                     const audioContext = new AudioCtx();
                     const source = audioContext.createMediaStreamSource(stream);
+
+                    // Spatial Panner
+                    const panner = audioContext.createStereoPanner();
+                    const gainNode = audioContext.createGain();
+                    source.connect(panner);
+                    panner.connect(gainNode);
+                    gainNode.connect(audioContext.destination);
+                    pannerRef.current = { panner, gainNode };
+
                     const analyzer = audioContext.createAnalyser();
                     source.connect(analyzer);
                     const dataArray = new Uint8Array(analyzer.frequencyBinCount);
+
                     const check = () => {
                         if (!peerConnections.current[remoteId] || pc.connectionState === 'closed') {
                             audioContext.close().catch(() => { });
                             return;
                         }
+
+                        // Update Spatial Parameters
+                        const myPos = peerPositions[myId] || { x: 100, y: 120 };
+                        const peerPos = peerPositions[remoteId];
+                        if (peerPos && pannerRef.current) {
+                            const dx = peerPos.x - myPos.x;
+                            const dy = peerPos.y - myPos.y;
+                            const distance = Math.sqrt(dx * dx + dy * dy);
+
+                            // 1. Stereo Panning (left/right)
+                            const pan = Math.max(-1, Math.min(1, dx / 400));
+                            pannerRef.current.panner.pan.setTargetAtTime(pan, audioContext.currentTime, 0.1);
+
+                            // 2. Volume Attenuation (distance)
+                            const maxDist = 800;
+                            const volume = Math.max(0, 1 - (distance / maxDist));
+                            pannerRef.current.gainNode.gain.setTargetAtTime(volume, audioContext.currentTime, 0.1);
+                        }
+
                         analyzer.getByteFrequencyData(dataArray);
                         const avg = dataArray.reduce((p, c) => p + c, 0) / dataArray.length;
                         const isTalking = avg > 10;
                         setPeers(prev => (prev[remoteId]?.isTalking === isTalking ? prev : { ...prev, [remoteId]: { ...prev[remoteId], isTalking } }));
-                        setTimeout(check, 250);
+                        setTimeout(check, 200);
                     };
                     check();
                 } catch (e) { }
@@ -194,7 +239,7 @@ export function useWebRTC(roomId, userName, isJoined, callbacks = {}) {
         };
 
         return pc;
-    }, [roomId, myId, setupDataChannel, localScreenStream, pcConfig]); // Add pcConfig to deps for safety
+    }, [roomId, myId, setupDataChannel, localScreenStream, pcConfig, peerPositions]); // Added peerPositions to deps
 
     const flushCandidates = useCallback(async (peerId) => {
         const pc = peerConnections.current[peerId];
@@ -239,6 +284,9 @@ export function useWebRTC(roomId, userName, isJoined, callbacks = {}) {
                 const pc = getPeerConnection(payload.from);
                 try {
                     if (payload.type === 'req') setJoinRequests(prev => prev.find(r => r.peerId === payload.from) ? prev : [...prev, { peerId: payload.from, peerName: payload.name }]);
+                    else if (payload.type === 'knock') {
+                        if (callbacksRef.current.onKnock) callbacksRef.current.onKnock(payload.from, payload.name);
+                    }
                     else if (payload.type === 'cancel') {
                         setJoinRequests(prev => prev.filter(r => r.peerId !== payload.from));
                         if (callbacksRef.current.onCallCanceled) callbacksRef.current.onCallCanceled(payload.from);
@@ -248,12 +296,16 @@ export function useWebRTC(roomId, userName, isJoined, callbacks = {}) {
                         if (callbacksRef.current.onCallAccepted) callbacksRef.current.onCallAccepted(payload.from);
                         const offer = await pc.createOffer();
                         await pc.setLocalDescription(offer);
-                        client.publish(`vo/room/${roomId}/${payload.from}/sig`, JSON.stringify({ type: 'off', from: myId, sdp: offer }));
+                        client.publish(`vo/room/${roomId}/${payload.from}/sig`, JSON.stringify({ type: 'off', from: myId, sdp: offer, isHuddleLocked: isLocked }));
                     }
                     else if (payload.type === 'off') {
-                        // If we are Available, auto-accept and notify UI
-                        if (myStatus === 'Available') {
+                        // If we are Available AND not locked, auto-accept and notify UI
+                        if (myStatus === 'Available' && !isLocked) {
                             if (callbacksRef.current.onCallAccepted) callbacksRef.current.onCallAccepted(payload.from);
+                        } else if (isLocked && !joinRequests.find(r => r.peerId === payload.from)) {
+                            // If locked and first time seeing this offer, treat as request
+                            setJoinRequests(prev => prev.find(r => r.peerId === payload.from) ? prev : [...prev, { peerId: payload.from, peerName: payload.name || 'Someone' }]);
+                            return; // Don't answer yet
                         }
                         await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
                         flushCandidates(payload.from);
@@ -320,7 +372,7 @@ export function useWebRTC(roomId, userName, isJoined, callbacks = {}) {
                 if (t) { t.enabled = !t.enabled; setIsMuted(!t.enabled); }
             }
         },
-        isLocked, toggleLock: () => setIsLocked(!isLocked),
+        isLocked, setIsLocked, toggleLock: () => setIsLocked(!isLocked),
         isVideoEnabled, toggleVideo: () => setIsVideoEnabled(prev => !prev),
         joinRequests, acceptJoinRequest: (id) => {
             setJoinRequests(prev => prev.filter(r => r.peerId !== id));
@@ -333,10 +385,13 @@ export function useWebRTC(roomId, userName, isJoined, callbacks = {}) {
         ringPeer: (id) => {
             mqttRef.current.publish(`vo/room/${roomId}/${id}/sig`, JSON.stringify({ type: 'req', from: myId, name: userName }));
         },
+        knockPeer: (id) => {
+            mqttRef.current.publish(`vo/room/${roomId}/${id}/sig`, JSON.stringify({ type: 'knock', from: myId, name: userName }));
+        },
         callPeer: (id) => {
             const pc = getPeerConnection(id);
             pc.createOffer().then(o => pc.setLocalDescription(o)).then(() => {
-                mqttRef.current.publish(`vo/room/${roomId}/${id}/sig`, JSON.stringify({ type: 'off', from: myId, sdp: pc.localDescription }));
+                mqttRef.current.publish(`vo/room/${roomId}/${id}/sig`, JSON.stringify({ type: 'off', from: myId, sdp: pc.localDescription, isHuddleLocked: isLocked }));
             });
         },
         hangUpPeer: (id) => {
@@ -416,6 +471,11 @@ export function useWebRTC(roomId, userName, isJoined, callbacks = {}) {
         },
         localVideoStream, localScreenStream,
         canScreenShare: !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia),
-        sendFile: (peerId, file) => { alert("P2P File Transfer not implemented."); }
+        sendFile: (peerId, file) => { alert("P2P File Transfer not implemented."); },
+        wbLines,
+        setWbLines,
+        sendWBData,
+        isWhiteboardOpen,
+        setIsWhiteboardOpen
     };
 }

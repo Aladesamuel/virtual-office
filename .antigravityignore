@@ -1,0 +1,20 @@
+# Antigravity Ignore File
+# Use this to skip processing of binary, temporary, or large unnecessary files.
+
+node_modules/
+.git/
+dist/
+build/
+.next/
+.vscode/
+*.log
+*.wasm
+*.map
+public/assets/
+*.mp3
+*.wav
+*.mp4
+*.exe
+*.dll
+.DS_Store
+Thumbs.db

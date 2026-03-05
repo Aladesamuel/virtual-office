@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import {
-  Mic, MicOff, UserRound, PhoneOff, PhoneCall,
-  Monitor, MonitorOff, User, LogOut, Coffee, Video, Camera, CameraOff,
+  User, Mic, MicOff, Phone, LogOut, Search,
+  Sparkles, Monitor, MonitorOff, Video, VideoOff,
+  Lock, Unlock, Hand, Camera, CameraOff, Palette, X,
+  PhoneOff, PhoneCall
 } from 'lucide-react';
 import { useWebRTC } from '../hooks/useWebRTC';
 import { sounds } from '../utils/sounds';
@@ -38,7 +40,7 @@ function DialerPopup({ peerList, activePeerId, dialingPeerId, onSelect, onHangUp
             return (
               <div
                 key={peer.id}
-                className={`dialer-sheet-row ${isActive || isDialing ? 'row-active' : ''}`}
+                className={`dialer - sheet - row ${isActive || isDialing ? 'row-active' : ''} `}
                 onClick={() => {
                   if (isDummy) return;
                   isActive || isDialing ? onHangUp(peer.id) : (!isOnCall ? onSelect(peer.id) : null);
@@ -46,7 +48,7 @@ function DialerPopup({ peerList, activePeerId, dialingPeerId, onSelect, onHangUp
               >
                 <div className="sheet-avatar">
                   <User size={18} />
-                  <span className={`sheet-status dot-${peer.status === 'OnCall' || isActive ? 'oncall' : (peer.status || 'Available')}`} />
+                  <span className={`sheet - status dot - ${peer.status === 'OnCall' || isActive ? 'oncall' : (peer.status || 'Available')} `} />
                 </div>
 
                 <div className="sheet-info">
@@ -73,7 +75,7 @@ function DialerPopup({ peerList, activePeerId, dialingPeerId, onSelect, onHangUp
 }
 
 // ─── Draggable Card ───────────────────────────────────────────────────────────
-function DraggableCard({ children, initialX, initialY, onFileDrop, peerId, scale = 1 }) {
+function DraggableCard({ children, initialX, initialY, onFileDrop, peerId, scale = 1, onPositionChange }) {
   const [pos, setPos] = useState({ x: initialX, y: initialY });
   const [dragging, setDragging] = useState(false);
   const [isOver, setIsOver] = useState(false);
@@ -94,10 +96,28 @@ function DraggableCard({ children, initialX, initialY, onFileDrop, peerId, scale
     document.addEventListener('touchmove', handleTouchMove, { passive: false });
     document.addEventListener('touchend', handleTouchEnd);
   };
-  const handleMouseMove = e => setPos({ x: e.clientX - offset.current.x, y: e.clientY - offset.current.y });
-  const handleTouchMove = e => { e.preventDefault(); const t = e.touches[0]; setPos({ x: t.clientX - offset.current.x, y: t.clientY - offset.current.y }); };
-  const handleMouseUp = () => { setDragging(false); document.removeEventListener('mousemove', handleMouseMove); document.removeEventListener('mouseup', handleMouseUp); };
-  const handleTouchEnd = () => { setDragging(false); document.removeEventListener('touchmove', handleTouchMove); document.removeEventListener('touchend', handleTouchEnd); };
+  const handleMouseMove = e => {
+    const newPos = { x: e.clientX - offset.current.x, y: e.clientY - offset.current.y };
+    setPos(newPos);
+  };
+  const handleTouchMove = e => {
+    e.preventDefault();
+    const t = e.touches[0];
+    const newPos = { x: t.clientX - offset.current.x, y: t.clientY - offset.current.y };
+    setPos(newPos);
+  };
+  const handleMouseUp = () => {
+    setDragging(false);
+    document.removeEventListener('mousemove', handleMouseMove);
+    document.removeEventListener('mouseup', handleMouseUp);
+    if (onPositionChange) onPositionChange(peerId, pos);
+  };
+  const handleTouchEnd = () => {
+    setDragging(false);
+    document.removeEventListener('touchmove', handleTouchMove);
+    document.removeEventListener('touchend', handleTouchEnd);
+    if (onPositionChange) onPositionChange(peerId, pos);
+  };
   const onDragOver = e => { e.preventDefault(); setIsOver(true); };
   const onDragLeave = () => setIsOver(false);
   const onDrop = e => {
@@ -109,7 +129,7 @@ function DraggableCard({ children, initialX, initialY, onFileDrop, peerId, scale
 
   return (
     <div
-      className={`peer-card ${isOver ? 'file-over' : ''}`}
+      className={`peer - card ${isOver ? 'file-over' : ''} `}
       style={{ left: pos.x, top: pos.y, cursor: dragging ? 'grabbing' : 'grab', touchAction: 'none', '--card-scale': scale }}
       onMouseDown={handleMouseDown} onTouchStart={handleTouchStart}
       onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}
@@ -120,6 +140,64 @@ function DraggableCard({ children, initialX, initialY, onFileDrop, peerId, scale
 }
 
 // ─── Main Room ────────────────────────────────────────────────────────────────
+// ─── Whiteboard Component ────────────────────────────────────────────────────
+function Whiteboard({ lines, onDraw }) {
+  const canvasRef = useRef(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = '#4f46e5';
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+
+    lines.forEach(line => {
+      ctx.beginPath();
+      ctx.moveTo(line.x0, line.y0);
+      ctx.lineTo(line.x1, line.y1);
+      ctx.stroke();
+    });
+  }, [lines]);
+
+  const handleMouseDown = e => {
+    setIsDrawing(true);
+    const rect = canvasRef.current.getBoundingClientRect();
+    canvasRef.current.lastX = e.clientX - rect.left;
+    canvasRef.current.lastY = e.clientY - rect.top;
+  };
+
+  const handleMouseMove = e => {
+    if (!isDrawing) return;
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    const line = { x0: canvasRef.current.lastX, y0: canvasRef.current.lastY, x1: x, y1: y };
+    onDraw(line);
+
+    canvasRef.current.lastX = x;
+    canvasRef.current.lastY = y;
+  };
+
+  const handleMouseUp = () => setIsDrawing(false);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      width={400}
+      height={300}
+      style={{ background: 'white', borderRadius: '12px', cursor: 'crosshair', display: 'block' }}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseOut={handleMouseUp}
+    />
+  );
+}
+
 export default function Room() {
   const { roomId: urlRoomId } = useParams();
   const [joined, setJoined] = useState(false);
@@ -129,16 +207,29 @@ export default function Room() {
   const [showDialer, setShowDialer] = useState(false);
   const [activePeerId, setActivePeerId] = useState(null);
   const [dialingPeerId, setDialingPeerId] = useState(null);
+  const [notifications, setNotifications] = useState([]);
+  const [cardPositions, setCardPositions] = useState(() => {
+    const saved = localStorage.getItem(`vo_pos_${urlRoomId} `);
+    return saved ? JSON.parse(saved) : {};
+  });
   const prevStatus = useRef('Available');
+  const prevPeers = useRef({});
 
-  const actualRoomId = `${urlRoomId}-${roomType.toLowerCase()}`;
+  const actualRoomId = `${urlRoomId} -${roomType.toLowerCase()} `;
 
   const {
     peers, myId, myStatus, setMyStatus, isMuted, toggleMute,
     joinRequests, acceptJoinRequest, declineJoinRequest, callPeer, hangUpPeer, ringPeer,
     startScreenShare, stopScreenShare, localScreenStream, sendFile, error, canScreenShare,
-    isVideoEnabled, toggleVideo, localVideoStream
-  } = useWebRTC(actualRoomId, name, joined, {
+    isVideoEnabled, toggleVideo, localVideoStream,
+    isLocked, toggleLock, knockPeer,
+    wbLines, setWbLines, sendWBData, isWhiteboardOpen, setIsWhiteboardOpen
+  } = useWebRTC(actualRoomId, name, joined, cardPositions, {
+    onKnock: (id, fromName) => {
+      const id_toast = Math.random().toString(36).substr(2, 9);
+      setNotifications(prev => [...prev, { id: id_toast, message: `${fromName} is knocking...` }]);
+      setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== id_toast)), 5000);
+    },
     onCallAccepted: (id) => {
       setDialingPeerId(prev => {
         if (prev === id) {
@@ -227,13 +318,38 @@ export default function Room() {
     }
   }, [peers, activePeerId]);
 
+  // Notifications for users entering
+  useEffect(() => {
+    const now = Object.keys(peers);
+    const prev = Object.keys(prevPeers.current);
+
+    now.forEach(id => {
+      if (!prev.includes(id)) {
+        const name = peers[id].name || 'Someone';
+        const id_toast = Math.random().toString(36).substr(2, 9);
+        setNotifications(prev => [...prev, { id: id_toast, message: `${name} entered the office` }]);
+        setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== id_toast)), 4000);
+      }
+    });
+
+    prevPeers.current = peers;
+  }, [peers]);
+
+  const updateCardPos = (id, pos) => {
+    setCardPositions(prev => {
+      const updated = { ...prev, [id]: pos };
+      localStorage.setItem(`vo_pos_${urlRoomId} `, JSON.stringify(updated));
+      return updated;
+    });
+  };
+
   const handleJoin = e => {
     e.preventDefault();
     if (name.trim()) { localStorage.setItem('vo_username', name); setJoined(true); }
   };
 
-  const handleDial = id => {
-    const isAvailable = peers[id]?.status === 'Available';
+  const handleDial = (id, status) => {
+    const isAvailable = status === 'Available';
     if (isAvailable) {
       callPeer(id);
       setActivePeerId(id);
@@ -276,6 +392,9 @@ export default function Room() {
   const activePeer = activePeerId ? peers[activePeerId] : null;
 
   const getInitialPos = (index, type) => {
+    const saved = cardPositions[type === 'me' ? myId : index.toString() === 'me' ? myId : index] || cardPositions[index];
+    if (saved) return saved;
+
     if (!isMobile) {
       if (type === 'me') return { x: 100, y: 120 };
       return { x: 420 + (index * 50), y: 120 + (index * 30) };
@@ -299,6 +418,16 @@ export default function Room() {
         />
       )}
 
+      {/* Notifications */}
+      <div className="notification-container">
+        {notifications.map(n => (
+          <div key={n.id} className="notification-toast">
+            <Sparkles size={14} />
+            {n.message}
+          </div>
+        ))}
+      </div>
+
       {/* Top Nav */}
       <div style={{ position: 'fixed', top: '1.5rem', left: '1.5rem', zIndex: 100 }}>
         <span style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--primary)' }}>
@@ -308,10 +437,10 @@ export default function Room() {
 
       {/* Room Toggler */}
       <div className="room-toggler">
-        <button className={`room-type-btn ${roomType === 'Lounge' ? 'active' : ''}`} onClick={() => setRoomType('Lounge')}>
+        <button className={`room - type - btn ${roomType === 'Lounge' ? 'active' : ''} `} onClick={() => setRoomType('Lounge')}>
           <Coffee size={16} /><span className="room-btn-text">Lounge</span>
         </button>
-        <button className={`room-type-btn ${roomType === 'Conference' ? 'active' : ''}`} onClick={() => setRoomType('Conference')}>
+        <button className={`room - type - btn ${roomType === 'Conference' ? 'active' : ''} `} onClick={() => setRoomType('Conference')}>
           <Video size={16} /><span className="room-btn-text">Conference</span>
           <span className="beta-tag">Beta</span>
         </button>
@@ -324,7 +453,7 @@ export default function Room() {
           <div className="request-banner-info">
             <span className="request-banner-text"><strong>{joinRequests[0].peerName}</strong> is calling...</span>
             <div className="request-banner-options">
-              <button className={`banner-toggle ${isMuted ? 'active' : ''}`} onClick={toggleMute} title={isMuted ? 'Mic is off' : 'Mic is on'}>
+              <button className={`banner - toggle ${isMuted ? 'active' : ''} `} onClick={toggleMute} title={isMuted ? 'Mic is off' : 'Mic is on'}>
                 {isMuted ? <MicOff size={14} /> : <Mic size={14} />}
               </button>
             </div>
@@ -343,7 +472,7 @@ export default function Room() {
         {peerList.map(peer => (
           peer.remoteAudioStream && (
             <audio
-              key={`audio-${peer.id}`}
+              key={`audio - ${peer.id} `}
               autoPlay
               ref={el => { if (el) el.srcObject = peer.remoteAudioStream; }}
             />
@@ -365,7 +494,13 @@ export default function Room() {
       {/* LOUNGE */}
       {roomType === 'Lounge' && (
         <>
-          <DraggableCard initialX={getInitialPos(0, 'me').x} initialY={getInitialPos(0, 'me').y} scale={dynamicScale}>
+          <DraggableCard
+            initialX={getInitialPos(0, 'me').x}
+            initialY={getInitialPos(0, 'me').y}
+            scale={dynamicScale}
+            peerId={myId}
+            onPositionChange={updateCardPos}
+          >
             <div>
               {localScreenStream ? (
                 <div className="card-screen-container">
@@ -378,9 +513,9 @@ export default function Room() {
                 </div>
               ) : (
                 <div onClick={() => setShowStatusMenu(!showStatusMenu)} style={{ position: 'relative' }}>
-                  <div className={`peer-avatar ${(activePeerId || isTalkingLocally) && !isMuted ? (isTalkingLocally ? 'talking-pulse active' : 'talking-pulse') : ''}`} style={{ cursor: 'pointer' }}>
+                  <div className={`peer - avatar ${(activePeerId || isTalkingLocally) && !isMuted ? (isTalkingLocally ? 'talking-pulse active' : 'talking-pulse') : ''} `} style={{ cursor: 'pointer' }}>
                     <User size={30} color={isTalkingLocally ? 'var(--primary)' : 'var(--text-muted)'} />
-                    <div className={`status-indicator status-${myStatus}`} />
+                    <div className={`status - indicator status - ${myStatus} `} />
                   </div>
                   {showStatusMenu && (
                     <div className="status-menu">
@@ -397,7 +532,15 @@ export default function Room() {
           </DraggableCard>
 
           {peerList.map((peer, index) => (
-            <DraggableCard key={peer.id} initialX={getInitialPos(index + 1, 'peer').x} initialY={getInitialPos(index + 1, 'peer').y} peerId={peer.id} onFileDrop={sendFile} scale={dynamicScale}>
+            <DraggableCard
+              key={peer.id}
+              initialX={getInitialPos(index + 1, 'peer').x}
+              initialY={getInitialPos(index + 1, 'peer').y}
+              peerId={peer.id}
+              onFileDrop={sendFile}
+              scale={dynamicScale}
+              onPositionChange={updateCardPos}
+            >
               <div>
                 {peer.remoteScreenStream ? (
                   <div className="card-screen-container">
@@ -409,18 +552,49 @@ export default function Room() {
                     <video autoPlay playsInline ref={el => { if (el) el.srcObject = peer.remoteVideoStream; }} className="card-video" />
                   </div>
                 ) : (
-                  <div className={`peer-avatar ${peer.id === activePeerId || peer.isTalking ? 'talking-pulse' : ''}`}>
-                    <User size={30} color={peer.id === activePeerId || peer.isTalking ? 'var(--primary)' : 'var(--text-muted)'} />
-                    <div className={`status-indicator status-${peer.status || 'Available'}`} />
+                  <div className={`peer - avatar ${peer.isTalking && !peer.isMuted ? 'talking-pulse active' : ''} `}>
+                    <User size={30} color={peer.isTalking ? 'var(--primary)' : 'var(--text-muted)'} />
+                    <div className={`status - indicator status - ${peer.status} `} />
+                    {peer.isLocked && <div className="lock-indicator"><Lock size={10} /></div>}
                   </div>
                 )}
-                <h3 style={{ fontSize: '1rem', fontWeight: 700, marginTop: '0.5rem' }}>{peer.name}</h3>
-                <p style={{ fontSize: '0.75rem', color: peer.id === activePeerId || peer.status === 'OnCall' ? 'var(--oncall)' : 'var(--text-muted)', fontWeight: peer.id === activePeerId ? 700 : 400 }}>
-                  {peer.id === activePeerId ? '📞 On call' : (peer.status === 'OnCall' ? 'On a call' : (peer.status || 'Available'))}
+                <h3 style={{ fontSize: '1rem', fontWeight: 700, marginTop: '0.5rem' }}>{peer.name || 'Anonymous'}</h3>
+                <p style={{ fontSize: '0.75rem', color: peer.status === 'OnCall' ? 'var(--oncall)' : 'var(--text-muted)' }}>
+                  {peer.status} {peer.isLocked ? '(Locked)' : ''}
                 </p>
+
+                <div className="card-actions">
+                  {peer.isLocked ? (
+                    <button className="action-btn" onClick={() => knockPeer(peer.id)}>
+                      <Hand size={14} /> Knock
+                    </button>
+                  ) : (
+                    <button className="action-btn" onClick={() => handleDial(peer.id, peer.status)}>
+                      <Phone size={14} /> {peer.status === 'Available' ? 'Connect' : 'Ring'}
+                    </button>
+                  )}
+                </div>
               </div>
             </DraggableCard>
           ))}
+
+          {isWhiteboardOpen && (
+            <DraggableCard
+              initialX={getInitialPos(10, 'wb').x}
+              initialY={getInitialPos(10, 'wb').y}
+              scale={dynamicScale}
+              peerId="whiteboard"
+              onPositionChange={updateCardPos}
+            >
+              <div className="whiteboard-card">
+                <div className="whiteboard-header">
+                  <span>Shared Whiteboard</span>
+                  <button onClick={() => setIsWhiteboardOpen(false)} className="control-btn small"><X size={14} /></button>
+                </div>
+                <Whiteboard lines={wbLines} onDraw={sendWBData} />
+              </div>
+            </DraggableCard>
+          )}
         </>
       )}
 
@@ -436,12 +610,12 @@ export default function Room() {
                 <div className="tile-info"><span>{presenter.name} is presenting</span></div>
               </div>
               <div className="side-grid">
-                <div className={`meeting-tile ${!isMuted ? 'active-speaker' : ''}`}>
+                <div className={`meeting - tile ${!isMuted ? 'active-speaker' : ''} `}>
                   {isVideoEnabled ? <video autoPlay playsInline muted ref={el => { if (el) el.srcObject = localVideoStream; }} className="meeting-video mirrored" /> : <div className="tile-avatar"><User size={24} /></div>}
                   <div className="tile-info">{isMuted ? <MicOff size={12} color="var(--danger)" /> : <Mic size={12} color="var(--success)" />}<span>You</span></div>
                 </div>
                 {peerList.filter(p => !p.remoteScreenStream).map(peer => (
-                  <div key={peer.id} className={`meeting-tile ${peer.isTalking ? 'active-speaker' : ''}`}>
+                  <div key={peer.id} className={`meeting - tile ${peer.isTalking ? 'active-speaker' : ''} `}>
                     {peer.remoteVideoStream ? <video autoPlay playsInline ref={el => { if (el) el.srcObject = peer.remoteVideoStream; }} className="meeting-video" /> : <div className="tile-avatar"><User size={24} /></div>}
                     <div className="tile-info">{!peer.isTalking ? <MicOff size={12} color="var(--danger)" /> : <Mic size={12} color="var(--success)" />}<span>{peer.name}</span></div>
                   </div>
@@ -450,12 +624,12 @@ export default function Room() {
             </div>
           ) : (
             <div className="conference-grid">
-              <div className={`meeting-tile ${!isMuted ? 'active-speaker' : ''}`}>
+              <div className={`meeting - tile ${!isMuted ? 'active-speaker' : ''} `}>
                 {isVideoEnabled ? <video autoPlay playsInline muted ref={el => { if (el) el.srcObject = localVideoStream; }} className="meeting-video mirrored" /> : <div className="tile-avatar"><User size={48} /></div>}
                 <div className="tile-info">{isMuted ? <MicOff size={14} color="var(--danger)" /> : <Mic size={14} color="var(--success)" />}<span>{name} (You)</span></div>
               </div>
               {peerList.map(peer => (
-                <div key={peer.id} className={`meeting-tile ${peer.isTalking ? 'active-speaker' : ''}`}>
+                <div key={peer.id} className={`meeting - tile ${peer.isTalking ? 'active-speaker' : ''} `}>
                   {peer.remoteScreenStream ? <video autoPlay playsInline ref={el => { if (el) el.srcObject = peer.remoteScreenStream; }} className="meeting-video" /> : peer.remoteVideoStream ? <video autoPlay playsInline ref={el => { if (el) el.srcObject = peer.remoteVideoStream; }} className="meeting-video" /> : <div className="tile-avatar"><User size={48} /></div>}
                   <div className="tile-info">{!peer.isTalking ? <MicOff size={14} color="var(--danger)" /> : <Mic size={14} color="var(--success)" />}<span>{peer.name}</span></div>
                 </div>
@@ -471,11 +645,11 @@ export default function Room() {
         {/* Dialer (Lounge only) */}
         {roomType === 'Lounge' && (
           <button
-            className={`dialer-toggle ${activePeerId || dialingPeerId ? 'dialer-toggle-active' : ''}`}
+            className={`dialer - toggle ${activePeerId || dialingPeerId ? 'dialer-toggle-active' : ''} `}
             onClick={() => setShowDialer(prev => !prev)}
             title="Office Dialer"
           >
-            <div className={`dialer-knob ${activePeerId || dialingPeerId ? 'dialer-knob-right' : ''}`}>
+            <div className={`dialer - knob ${activePeerId || dialingPeerId ? 'dialer-knob-right' : ''} `}>
               <PhoneCall size={16} />
             </div>
             <span className="dialer-label">
@@ -484,19 +658,27 @@ export default function Room() {
           </button>
         )}
 
-        {/* Mute (only visible while on a lounge call OR in conference) */}
+        {/* Control buttons */}
+        <button className={`control - btn ${isLocked ? 'active' : ''} `} onClick={toggleLock} title={isLocked ? "Unlock Huddle" : "Lock Huddle"}>
+          {isLocked ? <Lock size={22} /> : <Unlock size={22} />}
+        </button>
+
+        <button className={`control - btn ${isVideoEnabled ? 'active' : ''} `} onClick={toggleVideo} title={isVideoEnabled ? "Disable Video" : "Enable Video"}>
+          {isVideoEnabled ? <Camera size={22} /> : <CameraOff size={22} />}
+        </button>
+
         {(activePeerId || roomType === 'Conference') && (
-          <button className={`control-btn ${!isMuted ? 'active' : ''}`} onClick={toggleMute}>
+          <button className={`control - btn ${!isMuted ? 'active' : ''} `} onClick={toggleMute} title={isMuted ? "Unmute" : "Mute"}>
             {isMuted ? <MicOff size={22} /> : <Mic size={22} />}
           </button>
         )}
 
-        <button className={`control-btn ${isVideoEnabled ? 'active' : ''}`} onClick={toggleVideo}>
-          {isVideoEnabled ? <Camera size={22} /> : <CameraOff size={22} />}
+        <button className={`control - btn ${isWhiteboardOpen ? 'active' : ''} `} onClick={() => setIsWhiteboardOpen(!isWhiteboardOpen)} title="Toggle Whiteboard">
+          <Palette size={22} />
         </button>
 
         {canScreenShare && (roomType === 'Conference' || activePeerId) && (
-          <button className={`control-btn ${localScreenStream ? 'active' : ''}`} onClick={localScreenStream ? stopScreenShare : startScreenShare}>
+          <button className={`control - btn ${localScreenStream ? 'active' : ''} `} onClick={localScreenStream ? stopScreenShare : startScreenShare}>
             <Monitor size={22} />
           </button>
         )}
