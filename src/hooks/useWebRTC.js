@@ -115,7 +115,17 @@ export function useWebRTC(roomId, userName, isJoined) {
     useEffect(() => {
         if (!isJoined) return;
 
-        const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', { clientId: `vo_${myId}` });
+        const presenceTopic = `vo/${roomId}/${myId}/pres`;
+        const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+            clientId: `vo_${myId}`,
+            clean: true,
+            will: {
+                topic: presenceTopic,
+                payload: '',
+                retain: true,
+                qos: 1
+            }
+        });
         mqttRef.current = client;
 
         client.on('connect', () => {
@@ -123,30 +133,48 @@ export function useWebRTC(roomId, userName, isJoined) {
             client.subscribe(`vo/${roomId}/${myId}/sig`);
 
             // Broadcast heartbeat
+            client.publish(presenceTopic, JSON.stringify({
+                id: myId, name: userName, status: myStatus, isLocked, isMuted
+            }), { retain: true, qos: 1 });
+
             const heartbeat = () => {
-                client.publish(`vo/${roomId}/${myId}/pres`, JSON.stringify({
+                client.publish(presenceTopic, JSON.stringify({
                     id: myId, name: userName, status: myStatus, isLocked, isMuted
-                }), { retain: true });
+                }), { retain: true, qos: 1 });
             };
-            heartbeat();
             const interval = setInterval(heartbeat, 10000);
             return () => clearInterval(interval);
         });
 
         client.on('message', async (topic, message) => {
-            const data = JSON.parse(message.toString());
             const senderId = topic.split('/')[2];
 
             if (topic.endsWith('/pres')) {
                 if (senderId === myId) return;
-                if (!message.length) {
-                    setPeers(prev => { const n = { ...prev }; delete n[senderId]; return n; });
+
+                const msgStr = message.toString();
+                if (!msgStr) {
+                    setPeers(prev => {
+                        const n = { ...prev };
+                        delete n[senderId];
+                        return n;
+                    });
                     return;
                 }
-                setPeers(prev => ({ ...prev, [senderId]: { ...prev[senderId], ...data, lastSeen: Date.now() } }));
+
+                try {
+                    const data = JSON.parse(msgStr);
+                    setPeers(prev => ({
+                        ...prev,
+                        [senderId]: { ...prev[senderId], ...data, lastSeen: Date.now() }
+                    }));
+                } catch (e) {
+                    console.warn("[WebRTC] Presence Parse Error:", e);
+                }
             }
 
             if (topic.endsWith('/sig')) {
+                const data = JSON.parse(message.toString());
                 const pc = getPeerConnection(data.from);
 
                 if (data.type === 'off') {
@@ -168,7 +196,13 @@ export function useWebRTC(roomId, userName, isJoined) {
             }
         });
 
-        return () => client.end();
+        return () => {
+            if (client) {
+                client.publish(presenceTopic, '', { retain: true, qos: 1 }, () => {
+                    client.end();
+                });
+            }
+        };
     }, [isJoined, roomId, myId, userName, myStatus, isLocked, isMuted, getPeerConnection]);
 
     // Actions

@@ -111,13 +111,18 @@ export default function Room() {
           <p className="member-name">{name} (You)</p>
           <p className="member-status-text">{myStatus}</p>
 
-          <div style={{ marginTop: '1rem', width: '100%' }}>
+          <div style={{ marginTop: '1rem', width: '100%', aspectRatio: '16/9', overflow: 'hidden', borderRadius: '16px', border: '1px solid var(--border)', background: '#0f172a' }}>
             {isVideoEnabled && localStream && (
               <video
                 autoPlay playsInline muted
                 ref={el => { if (el) el.srcObject = localStream; }}
-                style={{ width: '100%', borderRadius: '16px', background: '#000', height: '140px', objectFit: 'cover', border: '1px solid var(--border)' }}
+                style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }}
               />
+            )}
+            {(!isVideoEnabled || !localStream) && (
+              <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-app)' }}>
+                <CameraOff size={24} color="var(--text-muted)" opacity={0.3} />
+              </div>
             )}
           </div>
         </div>
@@ -133,14 +138,20 @@ export default function Room() {
             <p className="member-name">{peer.name}</p>
             <p className="member-status-text">{peer.status || 'Available'} {peer.isMuted ? '(Muted)' : ''}</p>
 
-            {/* Video Feed if on call and video available */}
-            {peer.remoteStream && peer.remoteStream.getVideoTracks().length > 0 && (
-              <video
-                autoPlay playsInline
-                ref={el => { if (el) el.srcObject = peer.remoteStream; }}
-                style={{ width: '100%', borderRadius: '16px', background: '#000', height: '140px', objectFit: 'cover', marginTop: '1rem', border: '1px solid var(--border)' }}
-              />
-            )}
+            {/* Video Feed */}
+            <div style={{ marginTop: '1rem', width: '100%', aspectRatio: '16/9', overflow: 'hidden', borderRadius: '16px', border: '1px solid var(--border)', background: '#0f172a' }}>
+              {peer.remoteStream && peer.remoteStream.getVideoTracks().length > 0 ? (
+                <video
+                  autoPlay playsInline
+                  ref={el => { if (el) el.srcObject = peer.remoteStream; }}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+              ) : (
+                <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-app)' }}>
+                  <VideoOff size={24} color="var(--text-muted)" opacity={0.3} />
+                </div>
+              )}
+            </div>
 
             <div style={{ width: '100%' }}>
               {peer.status === 'OnCall' ? (
@@ -166,13 +177,28 @@ export default function Room() {
         ))}
       </div>
 
-      {/* Join Requests Banner */}
+      {/* Join Requests Banner (Notification Style) */}
       {joinRequests.length > 0 && (
-        <div style={{ position: 'fixed', bottom: '6rem', left: '50%', transform: 'translateX(-50%)', width: '90%', maxWidth: '400px', background: 'var(--primary)', color: 'white', padding: '1rem 1.5rem', borderRadius: '24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 110, boxShadow: 'var(--shadow-lg)' }}>
-          <span style={{ fontSize: '0.9rem' }}><strong>{joinRequests[0].name}</strong> is knocking...</span>
+        <div style={{
+          position: 'fixed', bottom: '6.5rem', left: '50%', transform: 'translateX(-50%)',
+          width: '90%', maxWidth: '380px', background: 'rgba(15, 23, 42, 0.95)', backdropFilter: 'blur(20px)',
+          color: 'white', padding: '1.25rem', borderRadius: '24px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          zIndex: 110, boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)',
+          border: '1px solid rgba(255,255,255,0.1)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ width: '40px', height: '40px', background: 'var(--primary)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Hand size={20} />
+            </div>
+            <div>
+              <p style={{ fontSize: '0.85rem', fontWeight: 700 }}>{joinRequests[0].name}</p>
+              <p style={{ fontSize: '0.75rem', opacity: 0.7 }}>is knocking...</p>
+            </div>
+          </div>
           <div style={{ display: 'flex', gap: '8px' }}>
-            <button onClick={() => acceptRequest(joinRequests[0].id)} style={{ background: 'white', color: 'var(--primary)', padding: '6px 16px', borderRadius: '12px', border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}>Let in</button>
-            <button onClick={() => addNotification("Request ignored")} style={{ background: 'rgba(255,255,255,0.2)', color: 'white', padding: '6px 12px', borderRadius: '12px', border: 'none', fontWeight: 600, cursor: 'pointer', fontSize: '0.85rem' }}>Ignore</button>
+            <button onClick={() => acceptRequest(joinRequests[0].id)} style={{ background: 'white', color: 'var(--text-main)', padding: '8px 16px', borderRadius: '12px', border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: '0.8rem' }}>Accept</button>
+            <button onClick={() => setJoinRequests(prev => prev.slice(1))} style={{ background: 'rgba(255,255,255,0.1)', color: 'white', padding: '8px 12px', borderRadius: '12px', border: 'none', fontWeight: 600, cursor: 'pointer', fontSize: '0.8rem' }}>Ignore</button>
           </div>
         </div>
       )}
@@ -222,4 +248,3 @@ export default function Room() {
     </div>
   );
 }
-```
