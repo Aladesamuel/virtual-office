@@ -81,6 +81,19 @@ export default function Room() {
     startScreenShare, stopScreenShare, localScreenStream, sendFile, error, canScreenShare
   } = useWebRTC(actualRoomId, name, joined);
 
+  // AUTO-JOIN logic for Conference room
+  useEffect(() => {
+    if (roomType === 'Conference' && joined) {
+      Object.keys(peers).forEach(id => {
+        if (!peers[id].isTalking) {
+          // In conference, we auto-call everyone to simulate immediate entry
+          // But only if we are the "caller" (alphabetical ID check to avoid double calls)
+          if (myId < id) callPeer(id);
+        }
+      });
+    }
+  }, [peers, roomType, joined, myId, callPeer]);
+
   const handleJoin = (e) => { e.preventDefault(); if (name.trim()) { localStorage.setItem('vo_username', name); setJoined(true); } };
 
   if (!joined) {
@@ -102,12 +115,14 @@ export default function Room() {
   const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
   const dynamicScale = isMobile ? Math.max(0.6, 1 - (peerList.length * 0.08)) : 1;
 
+  // Detect active presenter
+  const presenter = peerList.find(p => p.remoteScreenStream) || (localScreenStream ? { id: 'me', name: 'You', isMe: true } : null);
+
   const getInitialPos = (index, type) => {
     if (!isMobile) {
       if (type === 'me') return { x: 100, y: 100 };
       return { x: 400 + (index * 40), y: 200 + (index * 40) };
     }
-    // Center of screen minus roughly half-card dimensions
     const bx = window.innerWidth / 2 - (110 * dynamicScale);
     const by = window.innerHeight / 2 - (70 * dynamicScale);
     return { x: bx + (index * 15), y: by + (index * 15) };
@@ -117,25 +132,16 @@ export default function Room() {
     <div className="workspace-container">
       {/* Top Nav */}
       <div style={{ position: 'fixed', top: '1.5rem', left: '1.5rem', zIndex: 100 }}>
-        <h1 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--primary)' }}>
+        <button className="control-btn" onClick={() => setJoined(false)} style={{ color: 'var(--danger)', marginRight: '1rem' }}><LogOut size={20} /></button>
+        <span style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--primary)' }}>
           VO <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>/ {roomType}</span>
-        </h1>
+        </span>
       </div>
 
       {/* Room Toggler */}
       <div className="room-toggler">
-        <button
-          className={`room-type-btn ${roomType === 'Lounge' ? 'active' : ''}`}
-          onClick={() => setRoomType('Lounge')}
-        >
-          <Coffee size={16} /> Lounge
-        </button>
-        <button
-          className={`room-type-btn ${roomType === 'Conference' ? 'active' : ''}`}
-          onClick={() => setRoomType('Conference')}
-        >
-          <Video size={16} /> Conference
-        </button>
+        <button className={`room-type-btn ${roomType === 'Lounge' ? 'active' : ''}`} onClick={() => setRoomType('Lounge')}><Coffee size={16} /> Lounge</button>
+        <button className={`room-type-btn ${roomType === 'Conference' ? 'active' : ''}`} onClick={() => setRoomType('Conference')}><Video size={16} /> Conference</button>
       </div>
 
       {/* Join Requests */}
@@ -148,131 +154,84 @@ export default function Room() {
         </div>
       )}
 
-      {/* Lounge Layout (Draggable Cards) */}
+      {/* Lounge Layout */}
       {roomType === 'Lounge' && (
         <>
-          {/* Local User Card */}
           <DraggableCard initialX={getInitialPos(0, 'me').x} initialY={getInitialPos(0, 'me').y} scale={dynamicScale}>
             <div isSharing={!!localScreenStream}>
               {localScreenStream ? (
                 <div className="card-screen-container">
-                  <div className="screen-header">
-                    <span>You are sharing</span>
-                    <button onClick={stopScreenShare} className="control-btn danger small"><MonitorOff size={14} /></button>
-                  </div>
-                  <video
-                    autoPlay playsInline muted
-                    ref={el => { if (el) el.srcObject = localScreenStream; }}
-                    className="card-video"
-                  />
+                  <div className="screen-header"><span>Your Screen</span><button onClick={stopScreenShare} className="control-btn danger small"><MonitorOff size={14} /></button></div>
+                  <video autoPlay playsInline muted ref={el => { if (el) el.srcObject = localScreenStream; }} className="card-video" />
                 </div>
               ) : (
                 <div onClick={() => setShowStatusMenu(!showStatusMenu)}>
-                  <div className={`peer-avatar ${!isMuted ? 'talking-pulse' : ''}`} style={{ cursor: 'pointer' }}>
-                    <User size={30} color={!isMuted ? 'var(--primary)' : 'var(--text-muted)'} />
-                    <div className={`status-indicator status-${myStatus}`} />
-                  </div>
-                  {showStatusMenu && (
-                    <div className="status-menu">
-                      {['Available', 'Busy', 'Break'].map(s => <div key={s} className="status-option" onClick={() => setMyStatus(s)}>{s}</div>)}
-                    </div>
-                  )}
+                  <div className={`peer-avatar ${!isMuted ? 'talking-pulse' : ''}`} style={{ cursor: 'pointer' }}><User size={30} color={!isMuted ? 'var(--primary)' : 'var(--text-muted)'} /><div className={`status-indicator status-${myStatus}`} /></div>
+                  {showStatusMenu && <div className="status-menu">{['Available', 'Busy', 'Break'].map(s => <div key={s} className="status-option" onClick={() => setMyStatus(s)}>{s}</div>)}</div>}
                 </div>
               )}
-              <h3 style={{ fontSize: '1rem', fontWeight: 700 }}>{name} (You)</h3>
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{myStatus}</p>
+              <h3 style={{ fontSize: '1rem', fontWeight: 700 }}>{name} (You)</h3><p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{myStatus}</p>
             </div>
           </DraggableCard>
-
-          {/* Remote Peer Cards */}
           {peerList.map((peer, index) => (
-            <DraggableCard
-              key={peer.id}
-              initialX={getInitialPos(index + 1, 'peer').x}
-              initialY={getInitialPos(index + 1, 'peer').y}
-              peerId={peer.id}
-              onFileDrop={sendFile}
-              scale={dynamicScale}
-            >
+            <DraggableCard key={peer.id} initialX={getInitialPos(index + 1, 'peer').x} initialY={getInitialPos(index + 1, 'peer').y} peerId={peer.id} onFileDrop={sendFile} scale={dynamicScale}>
               <div isSharing={!!peer.remoteScreenStream}>
                 {peer.remoteScreenStream ? (
-                  <div className="card-screen-container">
-                    <div className="screen-header">
-                      <span>{peer.name}'s Screen</span>
-                    </div>
-                    <video
-                      autoPlay playsInline
-                      ref={el => { if (el) el.srcObject = peer.remoteScreenStream; }}
-                      className="card-video"
-                    />
-                  </div>
+                  <div className="card-screen-container"><div className="screen-header"><span>{peer.name}'s Screen</span></div><video autoPlay playsInline ref={el => { if (el) el.srcObject = peer.remoteScreenStream; }} className="card-video" /></div>
                 ) : (
-                  <div className={`peer-avatar ${peer.isTalking ? 'talking-pulse' : ''}`}>
-                    <User size={30} color={peer.isTalking ? 'var(--primary)' : 'var(--text-muted)'} />
-                    <div className={`status-indicator status-${peer.status}`} />
-                  </div>
+                  <div className={`peer-avatar ${peer.isTalking ? 'talking-pulse' : ''}`}><User size={30} color={peer.isTalking ? 'var(--primary)' : 'var(--text-muted)'} /><div className={`status-indicator status-${peer.status}`} /></div>
                 )}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <h3 style={{ fontSize: '1rem', fontWeight: 700 }}>{peer.name}</h3>
-                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{peer.status}</p>
-                  </div>
-                  <div style={{ display: 'flex', gap: '4px' }}>
-                    {peer.isTalking ? (
-                      <button onClick={() => hangUpPeer(peer.id)} className="control-btn danger small"><PhoneOff size={16} /></button>
-                    ) : (
-                      <button onClick={() => callPeer(peer.id)} className="btn btn-primary small">{peer.isLocked ? <Lock size={14} /> : <PhoneCall size={14} />}</button>
-                    )}
-                  </div>
-                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div><h3 style={{ fontSize: '1rem', fontWeight: 700 }}>{peer.name}</h3><p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{peer.status}</p></div><div style={{ display: 'flex', gap: '4px' }}>{peer.isTalking ? <button onClick={() => hangUpPeer(peer.id)} className="control-btn danger small"><PhoneOff size={16} /></button> : <button onClick={() => callPeer(peer.id)} className="btn btn-primary small">{peer.isLocked ? <Lock size={14} /> : <PhoneCall size={14} />}</button>}</div></div>
               </div>
             </DraggableCard>
           ))}
         </>
       )}
 
-      {/* Conference Layout (Google Meet Grid) */}
+      {/* Conference Layout (Google Meet Clone) */}
       {roomType === 'Conference' && (
-        <div className="conference-grid">
-          {/* My Tile */}
-          <div className={`meeting-tile ${!isMuted ? 'active-speaker' : ''}`}>
-            {localScreenStream ? (
-              <video
-                autoPlay playsInline muted
-                ref={el => { if (el) el.srcObject = localScreenStream; }}
-                className="meeting-video"
-              />
-            ) : (
-              <div className="tile-avatar">
-                <User size={48} />
-              </div>
-            )}
-            <div className="tile-info">
-              {isMuted ? <MicOff size={14} color="var(--danger)" /> : <Mic size={14} color="var(--success)" />}
-              <span>{name} (You)</span>
-            </div>
-          </div>
-
-          {/* Peer Tiles */}
-          {peerList.map(peer => (
-            <div key={peer.id} className={`meeting-tile ${peer.isTalking ? 'active-speaker' : ''}`}>
-              {peer.remoteScreenStream ? (
+        <div className="conference-layout">
+          {presenter ? (
+            <div className="presentation-container">
+              <div className="main-presentation">
                 <video
-                  autoPlay playsInline
-                  ref={el => { if (el) el.srcObject = peer.remoteScreenStream; }}
-                  className="meeting-video"
+                  autoPlay playsInline muted={presenter.isMe}
+                  ref={el => { if (el) el.srcObject = presenter.isMe ? localScreenStream : presenter.remoteScreenStream; }}
+                  className="meeting-video presentation"
                 />
-              ) : (
-                <div className="tile-avatar">
-                  <User size={48} />
+                <div className="tile-info"><span>{presenter.name} is presenting</span></div>
+              </div>
+              <div className="side-grid">
+                {/* Local Tile */}
+                <div className={`meeting-tile ${!isMuted ? 'active-speaker' : ''}`}>
+                  <div className="tile-avatar"><User size={32} /></div>
+                  <div className="tile-info">{isMuted ? <MicOff size={14} color="var(--danger)" /> : <Mic size={14} color="var(--success)" />}<span>You</span></div>
                 </div>
-              )}
-              <div className="tile-info">
-                {!peer.isTalking ? <MicOff size={14} color="var(--danger)" /> : <Mic size={14} color="var(--success)" />}
-                <span>{peer.name}</span>
+                {/* Peer Tiles */}
+                {peerList.filter(p => p.id !== presenter.id).map(peer => (
+                  <div key={peer.id} className={`meeting-tile ${peer.isTalking ? 'active-speaker' : ''}`}>
+                    <div className="tile-avatar"><User size={32} /></div>
+                    <div className="tile-info">{!peer.isTalking ? <MicOff size={14} color="var(--danger)" /> : <Mic size={14} color="var(--success)" />}<span>{peer.name}</span></div>
+                  </div>
+                ))}
               </div>
             </div>
-          ))}
+          ) : (
+            <div className="conference-grid">
+              {/* My Tile */}
+              <div className={`meeting-tile ${!isMuted ? 'active-speaker' : ''}`}>
+                <div className="tile-avatar"><User size={48} /></div>
+                <div className="tile-info">{isMuted ? <MicOff size={14} color="var(--danger)" /> : <Mic size={14} color="var(--success)" />}<span>{name} (You)</span></div>
+              </div>
+              {/* Peer Tiles */}
+              {peerList.map(peer => (
+                <div key={peer.id} className={`meeting-tile ${peer.isTalking ? 'active-speaker' : ''}`}>
+                  <div className="tile-avatar"><User size={48} /></div>
+                  <div className="tile-info">{!peer.isTalking ? <MicOff size={14} color="var(--danger)" /> : <Mic size={14} color="var(--success)" />}<span>{peer.name}</span></div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -282,10 +241,6 @@ export default function Room() {
         {canScreenShare && (roomType === 'Conference' || peerList.some(p => p.isTalking)) && (
           <button className={`control-btn ${localScreenStream ? 'active' : ''}`} onClick={localScreenStream ? stopScreenShare : startScreenShare}><Monitor size={22} /></button>
         )}
-        {peerList.some(p => p.isTalking) && (
-          <button className={`control-btn ${isLocked ? 'danger' : ''}`} onClick={toggleLock}>{isLocked ? <Lock size={22} /> : <Unlock size={22} />}</button>
-        )}
-        <button className="control-btn" onClick={() => setJoined(false)} style={{ color: 'var(--danger)', marginLeft: '0.5rem' }}><LogOut size={22} /></button>
         <div style={{ width: '1px', height: '24px', background: 'var(--border)', margin: '0 8px' }} />
         {['Available', 'Busy', 'Break'].map(s => <button key={s} onClick={() => setMyStatus(s)} style={{ width: '12px', height: '12px', borderRadius: '50%', background: `var(--${s === 'Available' ? 'success' : (s === 'Busy' ? 'danger' : 'warning')})`, transform: myStatus === s ? 'scale(1.4)' : 'scale(1)', transition: '0.2s', border: 'none', cursor: 'pointer' }} title={s} />)}
       </div>

@@ -189,7 +189,7 @@ body {
   display: block;
 }
 
-/* Controls */
+/* Control Bar */
 .control-bar {
   position: fixed;
   bottom: 2rem;
@@ -265,8 +265,6 @@ body {
   border-radius: 10px;
 }
 
-
-
 /* Status Menu */
 .status-menu {
   position: absolute;
@@ -293,98 +291,7 @@ body {
   background: var(--bg-app);
 }
 
-.chat-input::placeholder {
-  color: #cbd5e1;
-}
-
-.chat-input:focus {
-  outline: none;
-  border-color: var(--primary) !important;
-}
-
-/* Meeting Room / Google Meet Layout */
-.conference-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 20px;
-  padding: 80px 40px 120px 40px;
-  width: 100vw;
-  height: 100vh;
-  overflow-y: auto;
-  align-items: center;
-  justify-items: center;
-  z-index: 5;
-  position: relative;
-}
-
-@media (max-width: 768px) {
-  .conference-grid {
-    grid-template-columns: 1fr;
-    padding: 80px 15px 120px 15px;
-    gap: 15px;
-  }
-}
-
-.meeting-tile {
-  width: 100%;
-  max-width: 100%;
-  aspect-ratio: 16/9;
-  background: #1e293b;
-  border-radius: 24px;
-  overflow: hidden;
-  position: relative;
-  box-shadow: var(--shadow-lg);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 2px solid transparent;
-  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), border-color 0.3s;
-}
-
-.meeting-tile.active-speaker {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 4px var(--primary-subtle);
-}
-
-.meeting-video {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.meeting-video.mirrored {
-  transform: scaleX(-1);
-}
-
-.tile-info {
-  position: absolute;
-  bottom: 1rem;
-  left: 1rem;
-  padding: 4px 12px;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(4px);
-  border-radius: 10px;
-  color: white;
-  font-size: 0.85rem;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  z-index: 2;
-}
-
-.tile-avatar {
-  width: 80px;
-  height: 80px;
-  border-radius: 50%;
-  background: #334155;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #94a3b8;
-}
-
-/* Room Toggler Styles */
+/* Room Toggler */
 .room-toggler {
   position: fixed;
   top: 1.5rem;
@@ -423,4 +330,134 @@ body {
 
 .room-type-btn:hover:not(.active) {
   background: var(--bg-app);
+}
+
+/* Conference / Google Meet Layouts */
+.conference-layout {
+  width: 100vw;
+  height: 100vh;
+  padding: 80px 20px 100px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  position: relative;
+}
+
+.conference-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 20px;
+  width: 100%;
+  max-width: 1400px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+/* Presentation Mode (Screen Share Active) */
+.presentation-container {
+  display: grid;
+  grid-template-columns: 3fr 1fr;
+  gap: 20px;
+  width: 100%;
+  height: 100%;
+  max-width: 1600px;
+}
+
+.main-presentation {
+  width: 100%;
+  height: 100%;
+  background: #000;
+  border-radius: 24px;
+  overflow: hidden;
+  position: relative;
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.side-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  overflow-y: auto;
+  max-height: 80vh;
+  padding-right: 10px;
+}
+
+@media (max-width: 1024px) {
+  .presentation-container {
+    grid-template-columns: 1fr;
+    grid-template-rows: 2fr 1fr;
+  }
+
+  .side-grid {
+    flex-direction: row;
+    height: 180px;
+    width: 100%;
+  }
+
+  .side-grid .meeting-tile {
+    width: 240px;
+    flex-shrink: 0;
+  }
+}
+
+.meeting-tile {
+  width: 100%;
+  aspect-ratio: 16/9;
+  background: #1e293b;
+  border-radius: 24px;
+  overflow: hidden;
+  position: relative;
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid transparent;
+  transition: 0.3s;
+}
+
+.meeting-tile.active-speaker {
+  border-color: var(--primary);
+}
+
+.meeting-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.meeting-video.presentation {
+  object-fit: contain;
+  background: #000;
+}
+
+.tile-info {
+  position: absolute;
+  bottom: 1rem;
+  left: 1rem;
+  padding: 4px 12px;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  border-radius: 10px;
+  color: white;
+  font-size: 0.8rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 5;
+}
+
+.tile-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: #334155;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
 }
