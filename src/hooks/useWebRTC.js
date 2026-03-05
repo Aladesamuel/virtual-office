@@ -10,7 +10,13 @@ const pcConfig = {
 
 export function useWebRTC(roomId, userName, isJoined) {
     const [peers, setPeers] = useState({});
-    const [myId] = useState(() => `u_${Math.random().toString(36).substr(2, 6)}`);
+    const [myId] = useState(() => {
+        const saved = localStorage.getItem('vo_my_id');
+        if (saved) return saved;
+        const newId = `u_${Math.random().toString(36).substr(2, 6)}`;
+        localStorage.setItem('vo_my_id', newId);
+        return newId;
+    });
     const [myStatus, setMyStatus] = useState('Available');
     const [isMuted, setIsMuted] = useState(false);
     const [isVideoEnabled, setIsVideoEnabled] = useState(false);
@@ -111,6 +117,26 @@ export function useWebRTC(roomId, userName, isJoined) {
         return pc;
     }, [roomId, myId]);
 
+    // Prune stale peers
+    useEffect(() => {
+        const interval = setInterval(() => {
+            setPeers(prev => {
+                const now = Date.now();
+                const next = { ...prev };
+                let changed = false;
+                Object.keys(next).forEach(id => {
+                    // If we haven't heard from them in 25 seconds, they probably closed the tab
+                    if (now - next[id].lastSeen > 25000) {
+                        delete next[id];
+                        changed = true;
+                    }
+                });
+                return changed ? next : prev;
+            });
+        }, 5000);
+        return () => clearInterval(interval);
+    }, []);
+
     // 3. Signaling & Presence
     useEffect(() => {
         if (!isJoined) return;
@@ -132,17 +158,15 @@ export function useWebRTC(roomId, userName, isJoined) {
             client.subscribe(`vo/${roomId}/+/pres`);
             client.subscribe(`vo/${roomId}/${myId}/sig`);
 
-            // Broadcast heartbeat
-            client.publish(presenceTopic, JSON.stringify({
-                id: myId, name: userName, status: myStatus, isLocked, isMuted
-            }), { retain: true, qos: 1 });
-
-            const heartbeat = () => {
+            // Broadcast presence
+            const broadcast = () => {
                 client.publish(presenceTopic, JSON.stringify({
-                    id: myId, name: userName, status: myStatus, isLocked, isMuted
+                    id: myId, name: userName, status: myStatus, isLocked, isMuted, t: Date.now()
                 }), { retain: true, qos: 1 });
             };
-            const interval = setInterval(heartbeat, 10000);
+
+            broadcast();
+            const interval = setInterval(broadcast, 10000);
             return () => clearInterval(interval);
         });
 
