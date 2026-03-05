@@ -1,16 +1,21 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
   User, Mic, MicOff, Phone, LogOut,
   Lock, Unlock, Hand, Bell, UserRound
 } from 'lucide-react';
 import { useWebRTC } from '../hooks/useWebRTC';
+import { ActiveCallModal } from '../components/ActiveCallModal';
 
 export default function Room() {
   const { roomId } = useParams();
+  const navigate = useNavigate();
   const [joined, setJoined] = useState(false);
   const [name, setName] = useState(() => localStorage.getItem('vo_username') || '');
   const [notifications, setNotifications] = useState([]);
+  const [activePeerId, setActivePeerId] = useState(null);
+  const [callDuration, setCallDuration] = useState(0);
+  const callStartTime = useRef(null);
 
   const {
     peers, myId, myStatus, setMyStatus,
@@ -39,6 +44,33 @@ export default function Room() {
     setNotifications(prev => [...prev, { id, message }]);
     setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== id)), 4000);
   };
+
+  // Call duration timer
+  useEffect(() => {
+    if (!activePeerId) {
+      setCallDuration(0);
+      callStartTime.current = null;
+      return;
+    }
+
+    callStartTime.current = Date.now();
+    const interval = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - callStartTime.current) / 1000);
+      setCallDuration(elapsed);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [activePeerId]);
+
+  // Update timer display
+  useEffect(() => {
+    const timerElement = document.getElementById('call-timer');
+    if (timerElement) {
+      const minutes = Math.floor(callDuration / 60);
+      const seconds = callDuration % 60;
+      timerElement.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    }
+  }, [callDuration]);
 
   const handleJoin = (e) => {
     e.preventDefault();
@@ -92,7 +124,10 @@ export default function Room() {
         <h1 className="room-header-title">
           OFFICE <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>/ {roomId.slice(0, 8)}</span>
         </h1>
-        <span className="room-header-status">● ONLINE</span>
+        <div className="room-switcher">
+          <button className="room-tab active">Office</button>
+          <button className="room-tab" onClick={() => navigate(`/room/${roomId}/conference`)}>Conference</button>
+        </div>
       </div>
 
       {/* Office Floor (Grid) */}
@@ -120,7 +155,7 @@ export default function Room() {
 
             <div style={{ width: '100%', marginTop: '0.75rem' }}>
               {peer.status === 'OnCall' ? (
-                <button onClick={() => hangUp(peer.id)} className="call-btn danger">
+                <button onClick={() => { hangUp(peer.id); setActivePeerId(null); }} className="call-btn danger">
                   <Phone size={14} /> Hang Up
                 </button>
               ) : (
@@ -129,7 +164,7 @@ export default function Room() {
                     <Hand size={14} /> Knock
                   </button>
                 ) : (
-                  <button onClick={() => callPeer(peer.id)} className="call-btn">
+                  <button onClick={() => { callPeer(peer.id); setActivePeerId(peer.id); }} className="call-btn">
                     <Phone size={14} /> Talk
                   </button>
                 )
@@ -159,6 +194,18 @@ export default function Room() {
             <button onClick={() => setJoinRequests(prev => prev.slice(1))} style={{ background: 'rgba(255,255,255,0.1)', color: 'white', padding: '8px 10px', borderRadius: '10px', border: 'none', fontWeight: 600, cursor: 'pointer', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>Ignore</button>
           </div>
         </div>
+      )}
+
+      {/* Active Call Modal */}
+      {activePeerId && peers[activePeerId] && (
+        <ActiveCallModal
+          peerName={peers[activePeerId].name}
+          onHangUp={() => {
+            hangUp(activePeerId);
+            setActivePeerId(null);
+          }}
+          isVisible={true}
+        />
       )}
 
       {/* Floating Control Bar */}

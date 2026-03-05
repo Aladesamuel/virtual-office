@@ -2,6 +2,7 @@ import React from 'react';
 import { Routes, Route, HashRouter } from 'react-router-dom';
 import Home from './pages/Home';
 import Room from './pages/Room';
+import ConferenceRoom from './pages/ConferenceRoom';
 import './index.css';
 
 function App() {
@@ -11,6 +12,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/room/:roomId" element={<Room />} />
+          <Route path="/room/:roomId/conference" element={<ConferenceRoom />} />
         </Routes>
       </div>
     </HashRouter>
