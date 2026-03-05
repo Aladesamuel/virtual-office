@@ -37,6 +37,7 @@ export function useWebRTC(roomId, userName, isJoined) {
 
     // New Feature States
     const [localScreenStream, setLocalScreenStream] = useState(null);
+    const [isVideoEnabled, setIsVideoEnabled] = useState(false);
     const [incomingFile, setIncomingFile] = useState(null); // {name, size, progress, fromId}
 
     const mqttRef = useRef(null);
@@ -51,30 +52,40 @@ export function useWebRTC(roomId, userName, isJoined) {
     useEffect(() => {
         if (!isJoined) return;
 
-        navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } })
+        navigator.mediaDevices.getUserMedia({
+            audio: { echoCancellation: true, noiseSuppression: true },
+            video: isVideoEnabled
+        })
             .then(stream => {
-                stream.getAudioTracks().forEach(t => t.enabled = false);
                 localStreamRef.current = stream;
+                // Sync tracks with state
+                stream.getAudioTracks().forEach(t => t.enabled = !isMuted);
 
-                // Keep track of audio status
-                setIsMuted(true);
-
-                // Inject stream into existing connections
+                // If video was just added, we need to add it to existing PCs
                 Object.values(peerConnections.current).forEach(pc => {
-                    const sender = pc.getSenders().find(s => s.track?.kind === 'audio');
-                    if (!sender) stream.getAudioTracks().forEach(t => pc.addTrack(t, stream));
+                    stream.getTracks().forEach(track => {
+                        const sender = pc.getSenders().find(s => s.track?.kind === track.kind);
+                        if (!sender) pc.addTrack(track, stream);
+                        else if (sender.track !== track) sender.replaceTrack(track);
+                    });
                 });
             })
             .catch(err => {
                 console.error("[WebRTC] Media Error:", err);
-                setError("Microphone access is required.");
+                // Don't error out if just video fails
+                if (isVideoEnabled) {
+                    setIsVideoEnabled(false);
+                    setError("Camera access denied.");
+                } else {
+                    setError("Microphone access is required.");
+                }
             });
 
         return () => {
             if (localStreamRef.current) localStreamRef.current.getTracks().forEach(t => t.stop());
             if (localScreenStream) localScreenStream.getTracks().forEach(t => t.stop());
         };
-    }, [isJoined]);
+    }, [isJoined, isVideoEnabled]);
 
     // -----------------------------------------------------------------
     // 2. Peer Connection & DataChannel Setup
@@ -131,12 +142,16 @@ export function useWebRTC(roomId, userName, isJoined) {
             const stream = event.streams[0] || new MediaStream([event.track]);
             const isVideo = event.track.kind === 'video';
 
-            console.log(`[WebRTC] Track received from ${remoteId}: ${event.track.kind}`);
+            // Differentiate based on stream ID or track label (very basic heuristic)
+            const isScreen = event.streams[0]?.id.includes('screen') || event.track.label.toLowerCase().includes('screen');
 
             if (isVideo) {
                 setPeers(prev => ({
                     ...prev,
-                    [remoteId]: { ...prev[remoteId], remoteScreenStream: stream }
+                    [remoteId]: {
+                        ...prev[remoteId],
+                        [isScreen ? 'remoteScreenStream' : 'remoteVideoStream']: stream
+                    }
                 }));
                 return;
             }
@@ -373,12 +388,25 @@ export function useWebRTC(roomId, userName, isJoined) {
             }
         },
         isLocked, toggleLock: () => setIsLocked(!isLocked),
+        isVideoEnabled, toggleVideo: () => setIsVideoEnabled(prev => !prev),
         joinRequests, acceptJoinRequest: (id) => mqttRef.current.publish(`vo/room/${roomId}/${id}/sig`, JSON.stringify({ type: 'acc', from: myId })),
         declineJoinRequest: (id) => setJoinRequests(prev => prev.filter(r => r.peerId !== id)),
         callPeer, hangUpPeer,
 
         // Collab Tools
-        startScreenShare, stopScreenShare, localScreenStream,
+        startScreenShare: async () => {
+            try {
+                const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                setLocalScreenStream(stream);
+                Object.values(peerConnections.current).forEach(pc => {
+                    stream.getTracks().forEach(t => pc.addTrack(t, stream));
+                });
+                stream.getVideoTracks()[0].onended = () => stopScreenShare();
+            } catch (e) { console.error("Screen Share Error:", e); }
+        },
+        stopScreenShare,
+        localVideoStream: isVideoEnabled ? localStreamRef.current : null,
+        localScreenStream,
         canScreenShare: !!navigator.mediaDevices?.getDisplayMedia,
         sendFile: (peerId, file) => {
             const dc = dataChannels.current[peerId];
