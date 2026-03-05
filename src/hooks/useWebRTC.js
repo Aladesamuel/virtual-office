@@ -44,7 +44,6 @@ export function useWebRTC(roomId, userName, isJoined) {
     useEffect(() => {
         if (!isJoined) return;
 
-        console.log(`[WebRTC] Requesting Media. Video: ${isVideoEnabled}`);
         navigator.mediaDevices.getUserMedia({
             audio: { echoCancellation: true, noiseSuppression: true },
             video: isVideoEnabled ? { width: 1280, height: 720, frameRate: 24 } : false
@@ -53,23 +52,15 @@ export function useWebRTC(roomId, userName, isJoined) {
                 localStreamRef.current = stream;
                 stream.getAudioTracks().forEach(t => t.enabled = !isMuted);
 
-                // CRITICAL: Update local video stream for UI
-                if (isVideoEnabled) {
-                    setLocalVideoStream(stream);
-                } else {
-                    setLocalVideoStream(null);
-                }
+                if (isVideoEnabled) setLocalVideoStream(stream);
+                else setLocalVideoStream(null);
 
-                // Push new tracks to existing connections
+                // Update tracks in existing connections
                 Object.values(peerConnections.current).forEach(pc => {
                     stream.getTracks().forEach(track => {
-                        const senders = pc.getSenders();
-                        const sender = senders.find(s => s.track?.kind === track.kind);
-                        if (!sender) {
-                            pc.addTrack(track, stream);
-                        } else {
-                            sender.replaceTrack(track);
-                        }
+                        const sender = pc.getSenders().find(s => s.track?.kind === track.kind);
+                        if (!sender) pc.addTrack(track, stream);
+                        else sender.replaceTrack(track);
                     });
                 });
             })
@@ -77,10 +68,8 @@ export function useWebRTC(roomId, userName, isJoined) {
                 console.error("[WebRTC] Media Error:", err);
                 if (isVideoEnabled) {
                     setIsVideoEnabled(false);
-                    setError("Camera not found or access denied.");
-                } else {
-                    setError("Microphone required for workspace.");
-                }
+                    setError("Camera not found.");
+                } else setError("Mic required.");
             });
 
         return () => {
@@ -131,7 +120,7 @@ export function useWebRTC(roomId, userName, isJoined) {
                 mqttRef.current.publish(`vo/room/${roomId}/${remoteId}/sig`, JSON.stringify({
                     type: 'off', from: myId, sdp: offer
                 }));
-            } catch (e) { console.warn("[WebRTC] Negotiation Needed Error:", e); }
+            } catch (e) { console.warn("[WebRTC] Negotiation Error:", e); }
         };
 
         pc.ontrack = (event) => {
@@ -139,7 +128,6 @@ export function useWebRTC(roomId, userName, isJoined) {
             const isVideo = event.track.kind === 'video';
             const label = event.track.label.toLowerCase();
             const isScreen = label.includes('screen') || label.includes('monitor') || label.includes('display');
-            console.log(`[WebRTC] Track from ${remoteId}: ${event.track.kind}, isScreen: ${isScreen}, Label: ${label}`);
 
             if (isVideo) {
                 setPeers(prev => ({
@@ -164,6 +152,13 @@ export function useWebRTC(roomId, userName, isJoined) {
             setPeers(prev => ({ ...prev, [remoteId]: { ...prev[remoteId], isTalking: true } }));
         };
 
+        // Handle connection closure cleanup
+        pc.onconnectionstatechange = () => {
+            if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+                setPeers(prev => ({ ...prev, [remoteId]: { ...prev[remoteId], isTalking: false, remoteScreenStream: null, remoteVideoStream: null } }));
+            }
+        };
+
         return pc;
     }, [roomId, myId, setupDataChannel, localScreenStream]);
 
@@ -176,6 +171,14 @@ export function useWebRTC(roomId, userName, isJoined) {
         }
     }, []);
 
+    // Presence Broadcast
+    const broadcastPresence = useCallback(() => {
+        if (!mqttRef.current || !mqttRef.current.connected) return;
+        mqttRef.current.publish(`vo/room/${roomId}/${myId}/pres`, JSON.stringify({
+            id: myId, name: userName, status: myStatus, isLocked, isSharing: !!localScreenStream, sessionStartTime, lastSeen: Date.now()
+        }), { retain: true, qos: 1 });
+    }, [roomId, myId, userName, myStatus, isLocked, !!localScreenStream, sessionStartTime]);
+
     // Signaling
     useEffect(() => {
         if (!isJoined || !roomId) return;
@@ -187,9 +190,7 @@ export function useWebRTC(roomId, userName, isJoined) {
         client.on('connect', () => {
             client.subscribe(`vo/room/${roomId}/+/pres`);
             client.subscribe(`vo/room/${roomId}/${myId}/sig`);
-            client.publish(`vo/room/${roomId}/${myId}/pres`, JSON.stringify({
-                id: myId, name: userName, status: myStatus, isLocked: isLocked, isSharing: !!localScreenStream, sessionStartTime
-            }), { retain: true, qos: 1 });
+            broadcastPresence();
         });
 
         client.on('message', async (topic, message) => {
@@ -220,6 +221,12 @@ export function useWebRTC(roomId, userName, isJoined) {
                     } else if (payload.type === 'ans') {
                         await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
                         flushCandidates(payload.from);
+                    } else if (payload.type === 'bye') {
+                        if (peerConnections.current[payload.from]) {
+                            peerConnections.current[payload.from].close();
+                            delete peerConnections.current[payload.from];
+                        }
+                        setPeers(prev => ({ ...prev, [payload.from]: { ...prev[payload.from], isTalking: false, remoteScreenStream: null, remoteVideoStream: null } }));
                     } else if (payload.type === 'ice') {
                         if (pc.remoteDescription) await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
                         else (signalsQueue.current[payload.from] = signalsQueue.current[payload.from] || []).push(payload.candidate);
@@ -235,19 +242,13 @@ export function useWebRTC(roomId, userName, isJoined) {
             }
             Object.values(peerConnections.current).forEach(p => p.close());
         };
-    }, [isJoined, roomId, myId, getPeerConnection, flushCandidates]);
+    }, [isJoined, roomId, myId, getPeerConnection, flushCandidates, broadcastPresence]);
 
     // Presence & Pruning
     useEffect(() => {
-        if (!mqttRef.current || !mqttRef.current.connected) return;
-        const broadcast = () => {
-            mqttRef.current.publish(`vo/room/${roomId}/${myId}/pres`, JSON.stringify({
-                id: myId, name: userName, status: myStatus, isLocked, isSharing: !!localScreenStream, sessionStartTime, lastSeen: Date.now()
-            }), { retain: true, qos: 1 });
-        };
-        const timer = setInterval(broadcast, 15000); // More frequent heartbeats
+        const timer = setInterval(broadcastPresence, 15000);
         return () => clearInterval(timer);
-    }, [myStatus, isLocked, !!localScreenStream, roomId, myId, userName]);
+    }, [broadcastPresence]);
 
     useEffect(() => {
         const pruner = setInterval(() => {
@@ -256,7 +257,7 @@ export function useWebRTC(roomId, userName, isJoined) {
                 const updated = { ...prev };
                 let changed = false;
                 Object.keys(updated).forEach(id => {
-                    if (updated[id].lastSeen && (now - updated[id].lastSeen > 40000)) { // Prune after 40s
+                    if (updated[id].lastSeen && (now - updated[id].lastSeen > 40000)) {
                         delete updated[id];
                         if (peerConnections.current[id]) { peerConnections.current[id].close(); delete peerConnections.current[id]; }
                         changed = true;
@@ -268,25 +269,32 @@ export function useWebRTC(roomId, userName, isJoined) {
         return () => clearInterval(pruner);
     }, []);
 
-    const startScreenShare = useCallback(async () => {
-        try {
-            const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-            setLocalScreenStream(stream);
-            Object.values(peerConnections.current).forEach(pc => {
-                stream.getTracks().forEach(t => pc.addTrack(t, stream));
-                // Force offer for screen share
-                pc.onnegotiationneeded();
-            });
-            stream.getVideoTracks()[0].onended = () => stopScreenShare();
-        } catch (e) { }
-    }, []);
+    const callPeer = useCallback((id) => {
+        const pc = getPeerConnection(id);
+        pc.onnegotiationneeded();
+    }, [getPeerConnection]);
 
     const stopScreenShare = useCallback(() => {
         if (localScreenStream) {
             localScreenStream.getTracks().forEach(t => t.stop());
             setLocalScreenStream(null);
+            setTimeout(broadcastPresence, 100);
         }
-    }, [localScreenStream]);
+    }, [localScreenStream, broadcastPresence]);
+
+    const startScreenShare = useCallback(async () => {
+        try {
+            const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+            setLocalScreenStream(stream);
+            Object.keys(peers).forEach(peerId => {
+                const pc = getPeerConnection(peerId);
+                stream.getTracks().forEach(t => pc.addTrack(t, stream));
+                pc.onnegotiationneeded(); // Triggers a new offer including screen share
+            });
+            stream.getVideoTracks()[0].onended = () => stopScreenShare();
+            setTimeout(broadcastPresence, 100);
+        } catch (e) { }
+    }, [peers, getPeerConnection, stopScreenShare, broadcastPresence]);
 
     return {
         peers, myId, error, myStatus, setMyStatus,
@@ -300,19 +308,17 @@ export function useWebRTC(roomId, userName, isJoined) {
         isVideoEnabled, toggleVideo: () => setIsVideoEnabled(prev => !prev),
         joinRequests, acceptJoinRequest: (id) => mqttRef.current.publish(`vo/room/${roomId}/${id}/sig`, JSON.stringify({ type: 'acc', from: myId })),
         declineJoinRequest: (id) => setJoinRequests(prev => prev.filter(r => r.peerId !== id)),
-        callPeer: (id) => {
-            const pc = getPeerConnection(id);
-            pc.onnegotiationneeded();
-        },
+        callPeer,
         hangUpPeer: (id) => {
             if (peerConnections.current[id]) {
                 peerConnections.current[id].close();
                 delete peerConnections.current[id];
-                setPeers(prev => ({ ...prev, [id]: { ...prev[id], remoteScreenStream: null } }));
             }
+            if (mqttRef.current) mqttRef.current.publish(`vo/room/${roomId}/${id}/sig`, JSON.stringify({ type: 'bye', from: myId }));
+            setPeers(prev => ({ ...prev, [id]: { ...prev[id], isTalking: false, remoteScreenStream: null, remoteVideoStream: null } }));
         },
         startScreenShare, stopScreenShare, localVideoStream, localScreenStream,
         canScreenShare: !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia),
-        sendFile: (peerId, file) => { alert("P2P File Transfer not implemented in this demo."); }
+        sendFile: (peerId, file) => { alert("P2P File Transfer not implemented."); }
     };
 }
