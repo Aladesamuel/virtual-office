@@ -5,48 +5,54 @@ import { Sparkles, ArrowRight, AudioLines, ShieldCheck, Zap } from 'lucide-react
 export default function Home() {
   const navigate = useNavigate();
 
-  const handleCreateOffice = () => {
+  const generateRoomId = () => {
     const randomBytes = new Uint8Array(6);
     crypto.getRandomValues(randomBytes);
-    const roomId = Array.from(randomBytes)
+    return Array.from(randomBytes)
       .map(b => b.toString(16).padStart(2, '0'))
       .join('')
       .match(/.{1,4}/g)
       ?.join('-') || 'rand-room';
+  };
 
+  const handleCreateOffice = () => {
+    const roomId = generateRoomId();
     navigate(`/room/${roomId}`);
   };
 
   return (
-    <div style={{
-      height: '100vh',
-      background: 'radial-gradient(circle at 10% 20%, rgba(79, 70, 229, 0.05) 0%, rgba(255,255,255,1) 90%)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      fontFamily: 'var(--font-main)'
-    }}>
+    <main
+      role="main"
+      style={{
+        height: '100vh',
+        background: 'radial-gradient(circle at 10% 20%, rgba(79, 70, 229, 0.05) 0%, rgba(255,255,255,1) 90%)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontFamily: 'var(--font-main)'
+      }}
+    >
       <div style={{ maxWidth: '1100px', width: '100%', padding: '2rem', display: 'flex', alignItems: 'center', gap: '5rem' }}>
 
         {/* Content Side */}
-        <div style={{ flex: 1.2 }}>
+        <section aria-label="Virtual Office introduction" style={{ flex: 1.2 }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 16px', borderRadius: '99px', background: 'var(--primary-subtle)', color: 'var(--primary)', fontWeight: 700, fontSize: '0.8rem', marginBottom: '2rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             <Zap size={14} fill="var(--primary)" />
             Real-time Audio Workspace
           </div>
 
-          <h1 style={{ fontSize: '4.5rem', lineHeight: 1.05, marginBottom: '2rem', fontWeight: 800, letterSpacing: '-0.04em' }}>
+          <h1 style={{ fontSize: 'clamp(2rem, 8vw, 4.5rem)', lineHeight: 1.1, marginBottom: '2rem', fontWeight: 800, letterSpacing: '-0.04em' }}>
             The virtual space for <span style={{ color: 'var(--primary)' }}>fast teams.</span>
           </h1>
 
           <p style={{
             color: 'var(--text-muted)',
-            fontSize: '1.25rem',
+            fontSize: 'clamp(1rem, 2.5vw, 1.25rem)',
             lineHeight: '1.6',
             marginBottom: '3rem',
             maxWidth: '520px'
           }}>
-            Deep work doesn't have to be lonely. Jump in and out of audio huddles with zero frictions—no calls to schedule, just direct P2P connection.
+            Talk to teammates like they're right next to you. No meetings, no friction—just click and speak.
           </p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
@@ -56,22 +62,22 @@ export default function Home() {
               <ArrowRight size={20} />
             </button>
 
-            <div style={{ display: 'flex', gap: '2.5rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--text-muted)', fontSize: '0.9rem', fontWeight: 500 }}>
-                <div style={{ width: '32px', height: '32px', borderRadius: '10px', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--shadow-sm)' }}>
+            <ul style={{ display: 'flex', gap: '2.5rem', marginTop: '1rem', flexWrap: 'wrap', listStyle: 'none', padding: 0, margin: 0 }}>
+              <li style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--text-muted)', fontSize: '0.9rem', fontWeight: 500 }}>
+                <div aria-label="Secure" style={{ width: '32px', height: '32px', borderRadius: '10px', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--shadow-sm)' }}>
                   <ShieldCheck size={18} color="var(--primary)" />
                 </div>
-                Private P2P
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--text-muted)', fontSize: '0.9rem', fontWeight: 500 }}>
-                <div style={{ width: '32px', height: '32px', borderRadius: '10px', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--shadow-sm)' }}>
-                  <AudioLines size={18} color="var(--primary)" />
+                Private & Secure
+              </li>
+              <li style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--text-muted)', fontSize: '0.9rem', fontWeight: 500 }}>
+                <div aria-label="No setup required" style={{ width: '32px', height: '32px', borderRadius: '10px', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--shadow-sm)' }}>
+                  <Zap size={18} color="var(--primary)" />
                 </div>
-                Spatial Audio
-              </div>
-            </div>
+                Zero Setup
+              </li>
+            </ul>
           </div>
-        </div>
+        </section>
 
         {/* Visual Side (Preview of Draggable Cards) */}
         <div className="home-visual" style={{ flex: 1, position: 'relative', height: '500px' }}>
@@ -110,7 +116,7 @@ export default function Home() {
                         text-align: center;
                         gap: 3rem;
                     }
-                    div[style*="flex: 1.2"] {
+                    section[aria-label="Virtual Office introduction"] {
                         display: flex;
                         flex-direction: column;
                         align-items: center;
@@ -118,6 +124,6 @@ export default function Home() {
                     h1 { font-size: 3rem !important; }
                 }
             `}</style>
-    </div>
+    </main>
   );
 }
