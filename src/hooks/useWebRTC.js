@@ -174,6 +174,7 @@ export function useWebRTC(roomId, userName, isJoined) {
     // -----------------------------------------------------------------
     useEffect(() => {
         if (!isJoined || !roomId) return;
+        setPeers({}); // Clear peers when entering a new room/type
 
         const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
             clientId: `vo_${myId}`,
