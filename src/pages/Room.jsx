@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import {
   User, Mic, MicOff, Phone, LogOut,
   Lock, Unlock, Hand, Bell, UserRound
@@ -9,12 +9,12 @@ import { ActiveCallModal } from '../components/ActiveCallModal';
 
 export default function Room() {
   const { roomId } = useParams();
-  const navigate = useNavigate();
   const [joined, setJoined] = useState(false);
   const [name, setName] = useState(() => localStorage.getItem('vo_username') || '');
   const [notifications, setNotifications] = useState([]);
   const [activePeerId, setActivePeerId] = useState(null);
   const [callDuration, setCallDuration] = useState(0);
+  const [groupCallPeers, setGroupCallPeers] = useState([]);
   const callStartTime = useRef(null);
 
   const {
@@ -124,10 +124,7 @@ export default function Room() {
         <h1 className="room-header-title">
           OFFICE <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>/ {roomId.slice(0, 8)}</span>
         </h1>
-        <div className="room-switcher">
-          <button className="room-tab active">Office</button>
-          <button className="room-tab" onClick={() => navigate(`/room/${roomId}/conference`)}>Conference</button>
-        </div>
+        <span className="room-header-status">● ONLINE</span>
       </div>
 
       {/* Office Floor (Grid) */}
@@ -203,6 +200,15 @@ export default function Room() {
           onHangUp={() => {
             hangUp(activePeerId);
             setActivePeerId(null);
+            setGroupCallPeers([]);
+          }}
+          availablePeers={Object.values(peers).filter(p => p.id !== activePeerId && !groupCallPeers.includes(p.id))}
+          onAddPeer={(peerId) => {
+            if (!groupCallPeers.includes(peerId)) {
+              callPeer(peerId);
+              setGroupCallPeers([...groupCallPeers, peerId]);
+              addNotification(`${peers[peerId].name} added to call`);
+            }
           }}
           isVisible={true}
         />

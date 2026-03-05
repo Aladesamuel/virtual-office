@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, ArrowRight, AudioLines, ShieldCheck, Zap, Users } from 'lucide-react';
+import { Sparkles, ArrowRight, AudioLines, ShieldCheck, Zap } from 'lucide-react';
 
 export default function Home() {
   const navigate = useNavigate();
@@ -18,11 +18,6 @@ export default function Home() {
   const handleCreateOffice = () => {
     const roomId = generateRoomId();
     navigate(`/room/${roomId}`);
-  };
-
-  const handleCreateConference = () => {
-    const roomId = generateRoomId();
-    navigate(`/room/${roomId}/conference`);
   };
 
   return (
@@ -58,33 +53,11 @@ export default function Home() {
           </p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem', maxWidth: '600px' }}>
-              {/* Office Room Card */}
-              <button onClick={handleCreateOffice} style={{ background: 'white', border: '2px solid var(--border)', borderRadius: '20px', padding: '2rem', cursor: 'pointer', transition: 'all 0.3s', textAlign: 'left', outline: 'none' }} onMouseEnter={e => e.target.style.borderColor = 'var(--primary)'} onMouseLeave={e => e.target.style.borderColor = 'var(--border)'}>
-                <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'var(--primary-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1rem' }}>
-                  <AudioLines size={24} color="var(--primary)" />
-                </div>
-                <h3 style={{ fontSize: '1.25rem', fontWeight: 800, marginBottom: '0.5rem', color: 'var(--text-main)' }}>Virtual Office</h3>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', marginBottom: '1rem' }}>Quick 1-on-1 conversations with team members</p>
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: '0.75rem', background: 'var(--primary-subtle)', color: 'var(--primary)', padding: '4px 12px', borderRadius: '99px', fontWeight: 600 }}>P2P Audio</span>
-                  <span style={{ fontSize: '0.75rem', background: 'var(--primary-subtle)', color: 'var(--primary)', padding: '4px 12px', borderRadius: '99px', fontWeight: 600 }}>Instant</span>
-                </div>
-              </button>
-
-              {/* Conference Room Card */}
-              <button onClick={handleCreateConference} style={{ background: 'white', border: '2px solid var(--primary)', borderRadius: '20px', padding: '2rem', cursor: 'pointer', transition: 'all 0.3s', textAlign: 'left', outline: 'none', boxShadow: '0 10px 30px rgba(79, 70, 229, 0.1)' }} onMouseEnter={e => e.target.style.boxShadow = '0 15px 40px rgba(79, 70, 229, 0.2)'} onMouseLeave={e => e.target.style.boxShadow = '0 10px 30px rgba(79, 70, 229, 0.1)'}>
-                <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'linear-gradient(135deg, var(--primary), var(--oncall))', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1rem' }}>
-                  <Users size={24} color="white" />
-                </div>
-                <h3 style={{ fontSize: '1.25rem', fontWeight: 800, marginBottom: '0.5rem', color: 'var(--text-main)' }}>Conference Room</h3>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', marginBottom: '1rem' }}>Team meetings with screen sharing capabilities</p>
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: '0.75rem', background: 'rgba(79, 70, 229, 0.1)', color: 'var(--primary)', padding: '4px 12px', borderRadius: '99px', fontWeight: 600 }}>Group Call</span>
-                  <span style={{ fontSize: '0.75rem', background: 'rgba(79, 70, 229, 0.1)', color: 'var(--primary)', padding: '4px 12px', borderRadius: '99px', fontWeight: 600 }}>Screen Share</span>
-                </div>
-              </button>
-            </div>
+            <button className="btn btn-primary" onClick={handleCreateOffice} style={{ width: 'fit-content', padding: '1.25rem 2.5rem', fontSize: '1.1rem', borderRadius: '20px' }}>
+              <Sparkles size={20} />
+              <span>Create Workspace</span>
+              <ArrowRight size={20} />
+            </button>
 
             <div style={{ display: 'flex', gap: '2.5rem', marginTop: '1rem', flexWrap: 'wrap' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--text-muted)', fontSize: '0.9rem', fontWeight: 500 }}>
