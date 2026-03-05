@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   Mic, MicOff, UserRound, PhoneCall, PhoneOff, Lock, Unlock, Check, X,
-  Monitor, FileUp, MonitorOff, User
+  Monitor, FileUp, MonitorOff, User, LogOut
 } from 'lucide-react';
 import { useWebRTC } from '../hooks/useWebRTC';
 
@@ -188,6 +188,7 @@ export default function Room() {
         {peerList.some(p => p.isTalking) && (
           <button className={`control-btn ${isLocked ? 'danger' : ''}`} onClick={toggleLock}>{isLocked ? <Lock size={22} /> : <Unlock size={22} />}</button>
         )}
+        <button className="control-btn" onClick={() => setJoined(false)} style={{ color: 'var(--danger)', marginLeft: '0.5rem' }}><LogOut size={22} /></button>
         <div style={{ width: '1px', height: '24px', background: 'var(--border)', margin: '0 8px' }} />
         {['Available', 'Busy', 'Break'].map(s => <button key={s} onClick={() => setMyStatus(s)} style={{ width: '12px', height: '12px', borderRadius: '50%', background: `var(--${s === 'Available' ? 'success' : (s === 'Busy' ? 'danger' : 'warning')})`, transform: myStatus === s ? 'scale(1.4)' : 'scale(1)', transition: '0.2s', border: 'none', cursor: 'pointer' }} title={s} />)}
       </div>

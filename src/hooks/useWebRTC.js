@@ -248,7 +248,11 @@ export function useWebRTC(roomId, userName, isJoined) {
         });
 
         return () => {
-            if (mqttRef.current) mqttRef.current.end();
+            if (mqttRef.current) {
+                // Clear presence immediately for others
+                mqttRef.current.publish(`vo/room/${roomId}/${myId}/pres`, '', { retain: true, qos: 1 });
+                mqttRef.current.end();
+            }
             Object.values(peerConnections.current).forEach(p => p.close());
         };
     }, [isJoined, roomId, myId, getPeerConnection]);
