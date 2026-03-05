@@ -231,6 +231,10 @@ export function useWebRTC(roomId, userName, isJoined, callbacks = {}) {
                         client.publish(`vo/room/${roomId}/${payload.from}/sig`, JSON.stringify({ type: 'off', from: myId, sdp: offer }));
                     }
                     else if (payload.type === 'off') {
+                        // If we are Available, auto-accept and notify UI
+                        if (myStatus === 'Available') {
+                            if (callbacksRef.current.onCallAccepted) callbacksRef.current.onCallAccepted(payload.from);
+                        }
                         await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
                         flushCandidates(payload.from);
                         const answer = await pc.createAnswer();

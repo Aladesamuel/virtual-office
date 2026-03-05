@@ -197,17 +197,9 @@ export default function Room() {
     };
   }, [joined, isMuted]);
 
-  useEffect(() => {
-    if (dialingPeerId) sounds.playDialTone();
-    else sounds.stopDialTone();
-    return () => sounds.stopDialTone();
-  }, [dialingPeerId]);
 
-  useEffect(() => {
-    if (joinRequests.length > 0) sounds.playRingTone();
-    else sounds.stopRingTone();
-    return () => sounds.stopRingTone();
-  }, [joinRequests.length]);
+
+
 
   // AUTO Status: OnCall / restore
   useEffect(() => {
@@ -241,8 +233,14 @@ export default function Room() {
   };
 
   const handleDial = id => {
-    ringPeer(id);
-    setDialingPeerId(id);
+    const isAvailable = peers[id]?.status === 'Available';
+    if (isAvailable) {
+      callPeer(id);
+      setActivePeerId(id);
+    } else {
+      ringPeer(id);
+      setDialingPeerId(id);
+    }
     setShowDialer(false);
   };
 
