@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { useWebRTC } from '../hooks/useWebRTC';
 
-function DraggableCard({ children, initialX, initialY, onFileDrop, peerId }) {
+function DraggableCard({ children, initialX, initialY, onFileDrop, peerId, scale = 1 }) {
   const [pos, setPos] = useState({ x: initialX, y: initialY });
   const [dragging, setDragging] = useState(false);
   const [isOver, setIsOver] = useState(false);
@@ -48,7 +48,12 @@ function DraggableCard({ children, initialX, initialY, onFileDrop, peerId }) {
   return (
     <div
       className={`peer-card ${isOver ? 'file-over' : ''} ${children.props?.isSharing ? 'sharing' : ''}`}
-      style={{ left: pos.x, top: pos.y, cursor: dragging ? 'grabbing' : 'grab', touchAction: 'none' }}
+      style={{
+        left: pos.x, top: pos.y,
+        cursor: dragging ? 'grabbing' : 'grab',
+        touchAction: 'none',
+        '--card-scale': scale
+      }}
       onMouseDown={handleMouseDown}
       onTouchStart={handleTouchStart}
       onDragOver={onDragOver}
@@ -90,6 +95,19 @@ export default function Room() {
   }
 
   const peerList = Object.values(peers);
+  const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
+  const dynamicScale = isMobile ? Math.max(0.6, 1 - (peerList.length * 0.08)) : 1;
+
+  const getInitialPos = (index, type) => {
+    if (!isMobile) {
+      if (type === 'me') return { x: 100, y: 100 };
+      return { x: 400 + (index * 40), y: 200 + (index * 40) };
+    }
+    // Center of screen minus roughly half-card dimensions
+    const bx = window.innerWidth / 2 - (110 * dynamicScale);
+    const by = window.innerHeight / 2 - (70 * dynamicScale);
+    return { x: bx + (index * 15), y: by + (index * 15) };
+  };
 
   return (
     <div className="workspace-container">
@@ -109,7 +127,7 @@ export default function Room() {
       )}
 
       {/* Local User Card */}
-      <DraggableCard initialX={100} initialY={100}>
+      <DraggableCard initialX={getInitialPos(0, 'me').x} initialY={getInitialPos(0, 'me').y} scale={dynamicScale}>
         <div isSharing={!!localScreenStream}>
           {localScreenStream ? (
             <div className="card-screen-container">
@@ -143,7 +161,14 @@ export default function Room() {
 
       {/* Remote Peer Cards */}
       {peerList.map((peer, index) => (
-        <DraggableCard key={peer.id} initialX={400 + (index * 40)} initialY={200 + (index * 40)} peerId={peer.id} onFileDrop={sendFile}>
+        <DraggableCard
+          key={peer.id}
+          initialX={getInitialPos(index + 1, 'peer').x}
+          initialY={getInitialPos(index + 1, 'peer').y}
+          peerId={peer.id}
+          onFileDrop={sendFile}
+          scale={dynamicScale}
+        >
           <div isSharing={!!peer.remoteScreenStream}>
             {peer.remoteScreenStream ? (
               <div className="card-screen-container">
