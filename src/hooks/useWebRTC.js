@@ -13,7 +13,10 @@ const pcConfig = {
     iceCandidatePoolSize: 10
 };
 
-export function useWebRTC(roomId, userName, isJoined) {
+export function useWebRTC(roomId, userName, isJoined, callbacks = {}) {
+    const callbacksRef = useRef(callbacks);
+    useEffect(() => { callbacksRef.current = callbacks; }, [callbacks]);
+
     const [peers, setPeers] = useState({});
     const [sessionStartTime] = useState(() => Date.now());
     const [myId] = useState(() => {
@@ -209,8 +212,19 @@ export function useWebRTC(roomId, userName, isJoined) {
                 const payload = JSON.parse(msgStr);
                 const pc = getPeerConnection(payload.from);
                 try {
-                    if (payload.type === 'req') setJoinRequests(prev => [...prev, { peerId: payload.from, peerName: payload.name }]);
+                    if (payload.type === 'req') setJoinRequests(prev => {
+                        if (prev.find(r => r.peerId === payload.from)) return prev;
+                        return [...prev, { peerId: payload.from, peerName: payload.name }];
+                    });
+                    else if (payload.type === 'cancel') {
+                        setJoinRequests(prev => prev.filter(r => r.peerId !== payload.from));
+                        if (callbacksRef.current.onCallCanceled) callbacksRef.current.onCallCanceled(payload.from);
+                    }
+                    else if (payload.type === 'dec') {
+                        if (callbacksRef.current.onCallDeclined) callbacksRef.current.onCallDeclined(payload.from);
+                    }
                     else if (payload.type === 'acc') {
+                        if (callbacksRef.current.onCallAccepted) callbacksRef.current.onCallAccepted(payload.from);
                         // They accepted our knock — we initiate the offer
                         const offer = await pc.createOffer();
                         await pc.setLocalDescription(offer);
@@ -303,8 +317,21 @@ export function useWebRTC(roomId, userName, isJoined) {
         },
         isLocked, toggleLock: () => setIsLocked(!isLocked),
         isVideoEnabled, toggleVideo: () => setIsVideoEnabled(prev => !prev),
-        joinRequests, acceptJoinRequest: (id) => mqttRef.current.publish(`vo/room/${roomId}/${id}/sig`, JSON.stringify({ type: 'acc', from: myId })),
-        declineJoinRequest: (id) => setJoinRequests(prev => prev.filter(r => r.peerId !== id)),
+        joinRequests, acceptJoinRequest: (id) => {
+            setJoinRequests(prev => prev.filter(r => r.peerId !== id));
+            mqttRef.current.publish(`vo/room/${roomId}/${id}/sig`, JSON.stringify({ type: 'acc', from: myId }));
+        },
+        declineJoinRequest: (id) => {
+            setJoinRequests(prev => prev.filter(r => r.peerId !== id));
+            mqttRef.current.publish(`vo/room/${roomId}/${id}/sig`, JSON.stringify({ type: 'dec', from: myId }));
+        },
+        ringPeer: (id) => {
+            if (mqttRef.current) {
+                mqttRef.current.publish(`vo/room/${roomId}/${id}/sig`, JSON.stringify({
+                    type: 'req', from: myId, name: userName
+                }));
+            }
+        },
         callPeer: (id) => {
             // Send an offer directly via MQTT to start a call
             const pc = getPeerConnection(id);
@@ -320,6 +347,10 @@ export function useWebRTC(roomId, userName, isJoined) {
                 .catch(e => console.error('[WebRTC] callPeer failed:', e));
         },
         hangUpPeer: (id) => {
+            if (mqttRef.current) {
+                // tell them we hung up (or cancelled dialing)
+                mqttRef.current.publish(`vo/room/${roomId}/${id}/sig`, JSON.stringify({ type: 'cancel', from: myId }));
+            }
             if (peerConnections.current[id]) {
                 peerConnections.current[id].close();
                 delete peerConnections.current[id];

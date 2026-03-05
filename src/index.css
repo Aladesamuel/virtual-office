@@ -1089,3 +1089,67 @@ body {
   background: var(--border);
   color: var(--text-muted);
 }
+
+/* ===========================
+   Mobile Responsiveness
+=========================== */
+@media (max-width: 768px) {
+  .dialer-popup {
+    width: 260px;
+    padding: 8px;
+    bottom: calc(100% + 20px);
+  }
+  
+  .dialer-popup-title {
+    font-size: 0.65rem;
+    padding: 2px 6px 8px 6px;
+  }
+  
+  .dialer-row {
+    padding: 8px;
+    gap: 8px;
+  }
+  
+  .dialer-info {
+    max-width: 90px;
+  }
+  
+  .dialer-name {
+    font-size: 0.8rem;
+  }
+  
+  .dialer-status-text {
+    font-size: 0.65rem;
+  }
+  
+  .dialer-action {
+    padding: 4px 8px;
+    font-size: 0.7rem;
+    gap: 3px;
+  }
+
+  .request-banner {
+    top: 6rem;
+    width: 90%;
+    max-width: 320px;
+    padding: 10px 14px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .request-banner-text {
+    font-size: 0.85rem;
+  }
+
+  .request-banner-actions {
+    display: flex;
+    gap: 8px;
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .request-banner-actions button {
+    flex: 1;
+    justify-content: center;
+  }
+}

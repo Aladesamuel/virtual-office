@@ -5,9 +5,10 @@ import {
   Monitor, MonitorOff, User, LogOut, Coffee, Video, Camera, CameraOff,
 } from 'lucide-react';
 import { useWebRTC } from '../hooks/useWebRTC';
+import { sounds } from '../utils/sounds';
 
 // ─── Dialer Popup ─────────────────────────────────────────────────────────────
-function DialerPopup({ peerList, activePeerId, onSelect, onHangUp, onClose }) {
+function DialerPopup({ peerList, activePeerId, dialingPeerId, onSelect, onHangUp, onClose }) {
   const ref = useRef(null);
 
   useEffect(() => {
@@ -37,26 +38,27 @@ function DialerPopup({ peerList, activePeerId, onSelect, onHangUp, onClose }) {
       ) : (
         peerList.map(peer => {
           const isActive = peer.id === activePeerId;
+          const isDialing = peer.id === dialingPeerId;
           const isOnCall = peer.status === 'OnCall' && !isActive;
           return (
             <button
               key={peer.id}
-              className={`dialer-row ${isActive ? 'dialer-row-active' : ''}`}
-              onClick={() => isActive ? onHangUp(peer.id) : (!isOnCall ? onSelect(peer.id) : null)}
-              disabled={isOnCall && !isActive}
+              className={`dialer-row ${isActive || isDialing ? 'dialer-row-active' : ''}`}
+              onClick={() => (isActive || isDialing) ? onHangUp(peer.id) : (!isOnCall ? onSelect(peer.id) : null)}
+              disabled={isOnCall && !isActive && !isDialing}
             >
               <div className="dialer-avatar">
                 <User size={15} />
-                <span className={`dialer-dot status-dot-${isActive ? 'oncall' : (peer.status || 'Available')}`} />
+                <span className={`dialer-dot status-dot-${isActive || isDialing ? 'oncall' : (peer.status || 'Available')}`} />
               </div>
               <div className="dialer-info">
                 <span className="dialer-name">{peer.name}</span>
                 <span className="dialer-status-text">
-                  {isActive ? 'On call with you' : (peer.status === 'OnCall' ? 'On another call' : (peer.status || 'Available'))}
+                  {isActive ? 'On call with you' : isDialing ? 'Dialing...' : (peer.status === 'OnCall' ? 'On another call' : (peer.status || 'Available'))}
                 </span>
               </div>
-              <div className={`dialer-action ${isActive ? 'dialer-end' : isOnCall ? 'dialer-busy' : 'dialer-call'}`}>
-                {isActive ? <><PhoneOff size={13} /> End</> : isOnCall ? 'Busy' : <><PhoneCall size={13} /> Dial</>}
+              <div className={`dialer-action ${isActive || isDialing ? 'dialer-end' : isOnCall ? 'dialer-busy' : 'dialer-call'}`}>
+                {isActive || isDialing ? <><PhoneOff size={13} /> {isActive ? 'End' : 'Cancel'}</> : isOnCall ? 'Busy' : <><PhoneCall size={13} /> Dial</>}
               </div>
             </button>
           );
@@ -122,26 +124,57 @@ export default function Room() {
   const [roomType, setRoomType] = useState('Lounge');
   const [showDialer, setShowDialer] = useState(false);
   const [activePeerId, setActivePeerId] = useState(null);
-  const prevStatus = useRef('Available'); // remember status before call
+  const [dialingPeerId, setDialingPeerId] = useState(null);
+  const prevStatus = useRef('Available');
 
   const actualRoomId = `${urlRoomId}-${roomType.toLowerCase()}`;
 
   const {
     peers, myId, myStatus, setMyStatus, isMuted, toggleMute,
-    joinRequests, acceptJoinRequest, declineJoinRequest, callPeer, hangUpPeer,
+    joinRequests, acceptJoinRequest, declineJoinRequest, callPeer, hangUpPeer, ringPeer,
     startScreenShare, stopScreenShare, localScreenStream, sendFile, error, canScreenShare,
     isVideoEnabled, toggleVideo, localVideoStream
-  } = useWebRTC(actualRoomId, name, joined);
+  } = useWebRTC(actualRoomId, name, joined, {
+    onCallAccepted: (id) => {
+      setDialingPeerId(prev => {
+        if (prev === id) {
+          setActivePeerId(id);
+          return null;
+        }
+        return prev;
+      });
+    },
+    onCallDeclined: (id) => {
+      setDialingPeerId(prev => (prev === id ? null : prev));
+    },
+    onCallCanceled: (id) => {
+      setActivePeerId(prev => (prev === id ? null : prev));
+      setDialingPeerId(prev => (prev === id ? null : prev));
+    }
+  });
+
+  // Sound Hooks
+  useEffect(() => {
+    if (dialingPeerId) sounds.playDialTone();
+    else sounds.stopDialTone();
+    return () => sounds.stopDialTone();
+  }, [dialingPeerId]);
+
+  useEffect(() => {
+    if (joinRequests.length > 0) sounds.playRingTone();
+    else sounds.stopRingTone();
+    return () => sounds.stopRingTone();
+  }, [joinRequests.length]);
 
   // AUTO Status: OnCall / restore
   useEffect(() => {
-    if (activePeerId) {
+    if (activePeerId || dialingPeerId) {
       if (myStatus !== 'OnCall') prevStatus.current = myStatus;
       setMyStatus('OnCall');
     } else {
       if (myStatus === 'OnCall') setMyStatus(prevStatus.current);
     }
-  }, [activePeerId]);
+  }, [activePeerId, dialingPeerId]);
 
   // Conference: auto-call all peers
   useEffect(() => {
@@ -165,14 +198,15 @@ export default function Room() {
   };
 
   const handleDial = id => {
-    setActivePeerId(id);
-    callPeer(id);
+    ringPeer(id);
+    setDialingPeerId(id);
     setShowDialer(false);
   };
 
   const handleHangUp = id => {
     hangUpPeer(id);
     setActivePeerId(null);
+    setDialingPeerId(null);
     setShowDialer(false);
   };
 
@@ -234,20 +268,22 @@ export default function Room() {
       {joinRequests.length > 0 && (
         <div className="request-banner">
           <div className="incoming-call-ring" />
-          <span><strong>{joinRequests[0].peerName}</strong> is calling...</span>
-          <button onClick={() => { acceptJoinRequest(joinRequests[0].peerId); setActivePeerId(joinRequests[0].peerId); }} className="btn btn-primary">
-            <PhoneCall size={14} /> Answer
-          </button>
-          <button onClick={() => declineJoinRequest(joinRequests[0].peerId)} className="btn btn-ghost">Decline</button>
+          <span className="request-banner-text"><strong>{joinRequests[0].peerName}</strong> is calling...</span>
+          <div className="request-banner-actions">
+            <button onClick={() => { acceptJoinRequest(joinRequests[0].peerId); setActivePeerId(joinRequests[0].peerId); }} className="btn btn-primary">
+              <PhoneCall size={14} /> Answer
+            </button>
+            <button onClick={() => declineJoinRequest(joinRequests[0].peerId)} className="btn btn-ghost">Decline</button>
+          </div>
         </div>
       )}
 
-      {/* Active Call Indicator */}
-      {activePeer && (
+      {/* Active/Dialing Call Indicator */}
+      {(activePeerId || dialingPeerId) && (
         <div className="active-call-pill">
-          <div className="call-dot-anim" />
-          <span>In call with <strong>{activePeer.name}</strong></span>
-          <button className="end-call-mini" onClick={() => handleHangUp(activePeerId)}>
+          {activePeerId ? <div className="call-dot-anim" /> : <div className="incoming-call-ring" style={{ width: 8, height: 8 }} />}
+          <span>{dialingPeerId ? `Dialing ` : `In call with `}<strong>{peers[activePeerId || dialingPeerId]?.name}</strong></span>
+          <button className="end-call-mini" onClick={() => handleHangUp(activePeerId || dialingPeerId)}>
             <PhoneOff size={14} />
           </button>
         </div>
@@ -366,21 +402,22 @@ export default function Room() {
               <DialerPopup
                 peerList={peerList}
                 activePeerId={activePeerId}
+                dialingPeerId={dialingPeerId}
                 onSelect={handleDial}
                 onHangUp={handleHangUp}
                 onClose={() => setShowDialer(false)}
               />
             )}
             <button
-              className={`dialer-toggle ${activePeerId ? 'dialer-toggle-active' : ''}`}
+              className={`dialer-toggle ${activePeerId || dialingPeerId ? 'dialer-toggle-active' : ''}`}
               onClick={() => setShowDialer(prev => !prev)}
               title="Office Dialer"
             >
-              <div className={`dialer-knob ${activePeerId ? 'dialer-knob-right' : ''}`}>
-                {activePeerId ? <PhoneCall size={16} /> : <PhoneCall size={16} />}
+              <div className={`dialer-knob ${activePeerId || dialingPeerId ? 'dialer-knob-right' : ''}`}>
+                <PhoneCall size={16} />
               </div>
               <span className="dialer-label">
-                {activePeerId ? `${activePeer?.name || '...'} ` : 'Dial'}
+                {activePeerId ? `${activePeer?.name || '...'} ` : dialingPeerId ? `Dialing... ` : 'Dial'}
               </span>
             </button>
           </div>
