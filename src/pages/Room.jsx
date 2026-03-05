@@ -9,64 +9,55 @@ import { sounds } from '../utils/sounds';
 
 // ─── Dialer Popup ─────────────────────────────────────────────────────────────
 function DialerPopup({ peerList, activePeerId, dialingPeerId, onSelect, onHangUp, onClose }) {
-  const ref = useRef(null);
-
-  useEffect(() => {
-    const handler = e => {
-      // Ignore if clicking the toggle switch itself (to prevent double-toggling issues)
-      if (e.target.closest('.dialer-toggle')) return;
-      if (ref.current && !ref.current.contains(e.target)) onClose();
-    };
-    document.addEventListener('mousedown', handler);
-    document.addEventListener('touchstart', handler, { passive: true });
-    return () => {
-      document.removeEventListener('mousedown', handler);
-      document.removeEventListener('touchstart', handler);
-    };
-  }, [onClose]);
-
   return (
-    <div className="dialer-popup" ref={ref}>
-      <div className="dialer-popup-arrow" />
-      <p className="dialer-popup-title">
-        {activePeerId ? '📞 Active Call' : '☎️ Office Dialer'}
-      </p>
-
-      {peerList.length === 0 ? (
-        <div className="dialer-empty">
-          <p>No one else is online</p>
-          <p style={{ fontSize: '0.72rem', opacity: 0.6, marginTop: 4 }}>Share the room link to invite teammates</p>
+    <>
+      <div className="dialer-overlay" onClick={onClose} />
+      <div className="dialer-popup">
+        <div className="dialer-popup-header">
+          <p className="dialer-popup-title">
+            {activePeerId ? '📞 Active Call' : '☎️ Office Dialer'}
+          </p>
+          <button className="dialer-close-btn" onClick={onClose}>&times;</button>
         </div>
-      ) : (
-        peerList.map(peer => {
-          const isActive = peer.id === activePeerId;
-          const isDialing = peer.id === dialingPeerId;
-          const isOnCall = peer.status === 'OnCall' && !isActive;
-          return (
-            <button
-              key={peer.id}
-              className={`dialer-row ${isActive || isDialing ? 'dialer-row-active' : ''}`}
-              onClick={() => (isActive || isDialing) ? onHangUp(peer.id) : (!isOnCall ? onSelect(peer.id) : null)}
-              disabled={isOnCall && !isActive && !isDialing}
-            >
-              <div className="dialer-avatar">
-                <User size={15} />
-                <span className={`dialer-dot status-dot-${isActive || isDialing ? 'oncall' : (peer.status || 'Available')}`} />
-              </div>
-              <div className="dialer-info">
-                <span className="dialer-name">{peer.name}</span>
-                <span className="dialer-status-text">
-                  {isActive ? 'On call with you' : isDialing ? 'Dialing...' : (peer.status === 'OnCall' ? 'On another call' : (peer.status || 'Available'))}
-                </span>
-              </div>
-              <div className={`dialer-action ${isActive || isDialing ? 'dialer-end' : isOnCall ? 'dialer-busy' : 'dialer-call'}`}>
-                {isActive || isDialing ? <><PhoneOff size={13} /> {isActive ? 'End' : 'Cancel'}</> : isOnCall ? 'Busy' : <><PhoneCall size={13} /> Dial</>}
-              </div>
-            </button>
-          );
-        })
-      )}
-    </div>
+
+        <div className="dialer-scroll-area">
+          {peerList.length === 0 ? (
+            <div className="dialer-empty">
+              <p>No one else is online</p>
+              <p style={{ fontSize: '0.72rem', opacity: 0.6, marginTop: 4 }}>Share the room link to invite teammates</p>
+            </div>
+          ) : (
+            peerList.map(peer => {
+              const isActive = peer.id === activePeerId;
+              const isDialing = peer.id === dialingPeerId;
+              const isOnCall = peer.status === 'OnCall' && !isActive;
+              return (
+                <button
+                  key={peer.id}
+                  className={`dialer-row ${isActive || isDialing ? 'dialer-row-active' : ''}`}
+                  onClick={() => (isActive || isDialing) ? onHangUp(peer.id) : (!isOnCall ? onSelect(peer.id) : null)}
+                  disabled={isOnCall && !isActive && !isDialing}
+                >
+                  <div className="dialer-avatar">
+                    <User size={15} />
+                    <span className={`dialer-dot status-dot-${isActive || isDialing ? 'oncall' : (peer.status || 'Available')}`} />
+                  </div>
+                  <div className="dialer-info">
+                    <span className="dialer-name">{peer.name}</span>
+                    <span className="dialer-status-text">
+                      {isActive ? 'On call with you' : isDialing ? 'Dialing...' : (peer.status === 'OnCall' ? 'On another call' : (peer.status || 'Available'))}
+                    </span>
+                  </div>
+                  <div className={`dialer-action ${isActive || isDialing ? 'dialer-end' : isOnCall ? 'dialer-busy' : 'dialer-call'}`}>
+                    {isActive || isDialing ? <><PhoneOff size={13} /> {isActive ? 'End' : 'Cancel'}</> : isOnCall ? 'Busy' : <><PhoneCall size={13} /> Dial</>}
+                  </div>
+                </button>
+              );
+            })
+          )}
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -397,9 +388,9 @@ export default function Room() {
       {/* ── Control Bar ── */}
       <div className="control-bar">
 
-        {/* Dialer Toggle (Lounge only) */}
+        {/* Dialer (Lounge only) */}
         {roomType === 'Lounge' && (
-          <div style={{ position: 'relative' }}>
+          <>
             {showDialer && (
               <DialerPopup
                 peerList={peerList}
@@ -419,10 +410,10 @@ export default function Room() {
                 <PhoneCall size={16} />
               </div>
               <span className="dialer-label">
-                {activePeerId ? `${activePeer?.name || '...'} ` : dialingPeerId ? `Dialing... ` : 'Dial'}
+                {activePeerId ? (peers[activePeerId]?.name || 'On call') : dialingPeerId ? 'Dialing' : 'Dial'}
               </span>
             </button>
-          </div>
+          </>
         )}
 
         {/* Mute (only visible while on a lounge call OR in conference) */}

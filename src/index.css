@@ -930,6 +930,16 @@ body {
 /* ===========================
    Dialer Popup
 ================================= */
+.dialer-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: transparent;
+  z-index: 299;
+}
+
 .dialer-popup {
   position: absolute;
   bottom: calc(100% + 14px);
@@ -943,6 +953,9 @@ body {
   padding: 12px;
   z-index: 300;
   animation: dialer-in 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  display: flex;
+  flex-direction: column;
+  max-height: 400px;
 }
 
 @keyframes dialer-in {
@@ -957,16 +970,13 @@ body {
   }
 }
 
-.dialer-popup-arrow {
-  position: absolute;
-  bottom: -7px;
-  left: 50%;
-  transform: translateX(-50%) rotate(45deg);
-  width: 14px;
-  height: 14px;
-  background: white;
-  border-right: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
+.dialer-popup-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 8px 12px 8px;
+  border-bottom: 1px solid var(--bg-app);
+  margin-bottom: 8px;
 }
 
 .dialer-popup-title {
@@ -975,9 +985,22 @@ body {
   color: var(--text-main);
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  padding: 4px 8px 12px 8px;
-  border-bottom: 1px solid var(--bg-app);
-  margin-bottom: 8px;
+  margin: 0;
+}
+
+.dialer-close-btn {
+  background: none;
+  border: none;
+  font-size: 1.25rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+}
+
+.dialer-scroll-area {
+  overflow-y: auto;
+  flex: 1;
 }
 
 .dialer-empty {
@@ -1094,34 +1117,56 @@ body {
    Mobile Responsiveness
 =========================== */
 @media (max-width: 768px) {
+  .dialer-overlay {
+    background: rgba(0, 0, 0, 0.2);
+    backdrop-filter: blur(2px);
+  }
+
   .dialer-popup {
-    width: 260px;
-    padding: 8px;
-    bottom: calc(100% + 20px);
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    bottom: auto;
+    transform: translate(-50%, -50%);
+    width: 300px;
+    max-width: 90vw;
+    padding: 16px;
+    animation: dialer-mobile-in 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   }
-  
-  .dialer-popup-title {
-    font-size: 0.65rem;
-    padding: 2px 6px 8px 6px;
+
+  @keyframes dialer-mobile-in {
+    from {
+      opacity: 0;
+      transform: translate(-50%, -40%);
+    }
+
+    to {
+      opacity: 1;
+      transform: translate(-50%, -50%);
+    }
   }
-  
+
+  .dialer-popup-header {
+    padding: 0 0 12px 0;
+  }
+
   .dialer-row {
     padding: 8px;
     gap: 8px;
   }
-  
+
   .dialer-info {
     max-width: 90px;
   }
-  
+
   .dialer-name {
     font-size: 0.8rem;
   }
-  
+
   .dialer-status-text {
     font-size: 0.65rem;
   }
-  
+
   .dialer-action {
     padding: 4px 8px;
     font-size: 0.7rem;
@@ -1147,7 +1192,7 @@ body {
     width: 100%;
     justify-content: center;
   }
-  
+
   .request-banner-actions button {
     flex: 1;
     justify-content: center;
