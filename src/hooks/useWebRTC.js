@@ -135,6 +135,19 @@ export function useWebRTC(roomId, userName, isJoined, callbacks = {}) {
             } catch (e) { console.warn("[WebRTC] Negotiation Error", e); }
         };
 
+        pc.onconnectionstatechange = () => {
+            console.log(`[WebRTC] PC State (${remoteId}):`, pc.connectionState);
+            if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+                // Try to recover once if it just disconnected
+                if (pc.iceConnectionState === 'disconnected') {
+                    pc.restartIce().catch(e => console.warn("[WebRTC] ICE Restart Failed", e));
+                }
+            }
+            if (pc.connectionState === 'closed') {
+                setPeers(prev => { const n = { ...prev }; delete n[remoteId]; return n; });
+            }
+        };
+
         pc.ontrack = (event) => {
             const stream = event.streams[0] || new MediaStream([event.track]);
             const isVideo = event.track.kind === 'video';
@@ -143,6 +156,9 @@ export function useWebRTC(roomId, userName, isJoined, callbacks = {}) {
 
             setPeers(prev => {
                 const peer = prev[remoteId] || {};
+                // Only update if state actually changed to avoid re-renders
+                if (peer[isVideo ? (isScreen ? 'remoteScreenStream' : 'remoteVideoStream') : 'remoteAudioStream'] === stream) return prev;
+
                 return {
                     ...prev,
                     [remoteId]: {
@@ -155,13 +171,17 @@ export function useWebRTC(roomId, userName, isJoined, callbacks = {}) {
             // Remote VAD
             if (!isVideo) {
                 try {
-                    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    const audioContext = new AudioCtx();
                     const source = audioContext.createMediaStreamSource(stream);
                     const analyzer = audioContext.createAnalyser();
                     source.connect(analyzer);
                     const dataArray = new Uint8Array(analyzer.frequencyBinCount);
                     const check = () => {
-                        if (!peerConnections.current[remoteId]) { audioContext.close(); return; }
+                        if (!peerConnections.current[remoteId] || pc.connectionState === 'closed') {
+                            audioContext.close().catch(() => { });
+                            return;
+                        }
                         analyzer.getByteFrequencyData(dataArray);
                         const avg = dataArray.reduce((p, c) => p + c, 0) / dataArray.length;
                         const isTalking = avg > 10;
@@ -174,7 +194,7 @@ export function useWebRTC(roomId, userName, isJoined, callbacks = {}) {
         };
 
         return pc;
-    }, [roomId, myId, setupDataChannel, localScreenStream]);
+    }, [roomId, myId, setupDataChannel, localScreenStream, pcConfig]); // Add pcConfig to deps for safety
 
     const flushCandidates = useCallback(async (peerId) => {
         const pc = peerConnections.current[peerId];
@@ -329,18 +349,68 @@ export function useWebRTC(roomId, userName, isJoined, callbacks = {}) {
         },
         startScreenShare: async () => {
             try {
-                const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-                setLocalScreenStream(stream);
-                Object.values(peerConnections.current).forEach(pc => {
-                    stream.getTracks().forEach(t => pc.addTrack(t, stream));
-                    pc.onnegotiationneeded();
+                // Production-ready constraints: prefer system audio if available
+                const stream = await navigator.mediaDevices.getDisplayMedia({
+                    video: { cursor: "always" },
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
+                    }
                 });
-                stream.getVideoTracks()[0].onended = () => setLocalScreenStream(null);
-            } catch (e) { }
+
+                setLocalScreenStream(stream);
+
+                // Add or Replace tracks in all PC instances
+                Object.values(peerConnections.current).forEach(pc => {
+                    stream.getTracks().forEach(track => {
+                        // Check if we already have a sender for this kind of track
+                        const senders = pc.getSenders();
+                        const existingSender = senders.find(s => s.track?.kind === track.kind && s.track?.label?.includes('screen'));
+
+                        if (existingSender) {
+                            existingSender.replaceTrack(track);
+                        } else {
+                            pc.addTrack(track, stream);
+                        }
+                    });
+                });
+
+                // Handle external stop (browser's "Stop Sharing" button)
+                stream.getVideoTracks()[0].onended = () => {
+                    // Logic to remove tracks from PCs
+                    Object.values(peerConnections.current).forEach(pc => {
+                        const senders = pc.getSenders();
+                        senders.forEach(sender => {
+                            if (sender.track && (sender.track.label.includes('screen') || stream.getTracks().includes(sender.track))) {
+                                try { pc.removeTrack(sender); } catch (e) { }
+                            }
+                        });
+                    });
+                    setLocalScreenStream(null);
+                };
+
+            } catch (err) {
+                console.error("[WebRTC] Screen Share Error:", err);
+                if (err.name !== 'NotAllowedError') {
+                    setError("Failed to start screen share. Please check permissions.");
+                }
+            }
         },
         stopScreenShare: () => {
             if (localScreenStream) {
-                localScreenStream.getTracks().forEach(t => t.stop());
+                localScreenStream.getTracks().forEach(t => {
+                    t.stop();
+                    // Manually trigger onended logic for consistency
+                    Object.values(peerConnections.current).forEach(pc => {
+                        const senders = pc.getSenders();
+                        senders.forEach(sender => {
+                            if (sender.track === t) {
+                                try { pc.removeTrack(sender); } catch (e) { }
+                            }
+                        });
+                    });
+                });
                 setLocalScreenStream(null);
             }
         },
