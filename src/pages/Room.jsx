@@ -13,10 +13,12 @@ function DialerPopup({ peerList, activePeerId, dialingPeerId, onSelect, onHangUp
 
   useEffect(() => {
     const handler = e => {
+      // Ignore if clicking the toggle switch itself (to prevent double-toggling issues)
+      if (e.target.closest('.dialer-toggle')) return;
       if (ref.current && !ref.current.contains(e.target)) onClose();
     };
     document.addEventListener('mousedown', handler);
-    document.addEventListener('touchstart', handler);
+    document.addEventListener('touchstart', handler, { passive: true });
     return () => {
       document.removeEventListener('mousedown', handler);
       document.removeEventListener('touchstart', handler);
