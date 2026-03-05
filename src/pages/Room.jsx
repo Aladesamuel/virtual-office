@@ -202,10 +202,7 @@ export default function Room() {
   const [activePeerId, setActivePeerId] = useState(null);
   const [dialingPeerId, setDialingPeerId] = useState(null);
   const [notifications, setNotifications] = useState([]);
-  const [cardPositions, setCardPositions] = useState(() => {
-    const saved = localStorage.getItem(`vo_pos_${urlRoomId}`);
-    return saved ? JSON.parse(saved) : {};
-  });
+  const [cardPositions, setCardPositions] = useState({});
   const prevStatus = useRef('Available');
   const prevPeers = useRef({});
 
@@ -218,7 +215,7 @@ export default function Room() {
     isVideoEnabled, toggleVideo, localVideoStream,
     isLocked, toggleLock, knockPeer,
     wbLines, setWbLines, sendWBData, isWhiteboardOpen, setIsWhiteboardOpen
-  } = useWebRTC(actualRoomId, name, joined, cardPositions, {
+  } = useWebRTC(actualRoomId, name, joined, {
     onKnock: (id, fromName) => {
       const id_toast = Math.random().toString(36).substr(2, 9);
       setNotifications(prev => [...prev, { id: id_toast, message: `${fromName} is knocking...` }]);
@@ -319,11 +316,7 @@ export default function Room() {
   }, [peers]);
 
   const updateCardPos = (id, pos) => {
-    setCardPositions(prev => {
-      const updated = { ...prev, [id]: pos };
-      localStorage.setItem(`vo_pos_${urlRoomId}`, JSON.stringify(updated));
-      return updated;
-    });
+    setCardPositions(prev => ({ ...prev, [id]: pos }));
   };
 
   const handleJoin = e => {

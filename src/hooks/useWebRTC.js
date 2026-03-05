@@ -13,7 +13,7 @@ const pcConfig = {
     iceCandidatePoolSize: 10
 };
 
-export function useWebRTC(roomId, userName, isJoined, peerPositions = {}, callbacks = {}) {
+export function useWebRTC(roomId, userName, isJoined, callbacks = {}) {
     const callbacksRef = useRef(callbacks);
     useEffect(() => { callbacksRef.current = callbacks; }, [callbacks]);
 
@@ -184,20 +184,12 @@ export function useWebRTC(roomId, userName, isJoined, peerPositions = {}, callba
                 };
             });
 
-            // Spatial Audio & Remote VAD
+            // Remote VAD (Talking Indicator)
             if (!isVideo) {
                 try {
                     const AudioCtx = window.AudioContext || window.webkitAudioContext;
                     const audioContext = new AudioCtx();
                     const source = audioContext.createMediaStreamSource(stream);
-
-                    // Spatial Panner
-                    const panner = audioContext.createStereoPanner();
-                    const gainNode = audioContext.createGain();
-                    source.connect(panner);
-                    panner.connect(gainNode);
-                    gainNode.connect(audioContext.destination);
-                    pannerRef.current = { panner, gainNode };
 
                     const analyzer = audioContext.createAnalyser();
                     source.connect(analyzer);
@@ -207,24 +199,6 @@ export function useWebRTC(roomId, userName, isJoined, peerPositions = {}, callba
                         if (!peerConnections.current[remoteId] || pc.connectionState === 'closed') {
                             audioContext.close().catch(() => { });
                             return;
-                        }
-
-                        // Update Spatial Parameters
-                        const myPos = peerPositions[myId] || { x: 100, y: 120 };
-                        const peerPos = peerPositions[remoteId];
-                        if (peerPos && pannerRef.current) {
-                            const dx = peerPos.x - myPos.x;
-                            const dy = peerPos.y - myPos.y;
-                            const distance = Math.sqrt(dx * dx + dy * dy);
-
-                            // 1. Stereo Panning (left/right)
-                            const pan = Math.max(-1, Math.min(1, dx / 400));
-                            pannerRef.current.panner.pan.setTargetAtTime(pan, audioContext.currentTime, 0.1);
-
-                            // 2. Volume Attenuation (distance)
-                            const maxDist = 800;
-                            const volume = Math.max(0, 1 - (distance / maxDist));
-                            pannerRef.current.gainNode.gain.setTargetAtTime(volume, audioContext.currentTime, 0.1);
                         }
 
                         analyzer.getByteFrequencyData(dataArray);
@@ -239,7 +213,7 @@ export function useWebRTC(roomId, userName, isJoined, peerPositions = {}, callba
         };
 
         return pc;
-    }, [roomId, myId, setupDataChannel, localScreenStream, pcConfig, peerPositions]); // Added peerPositions to deps
+    }, [roomId, myId, setupDataChannel, localScreenStream, pcConfig]); // Removed peerPositions from deps
 
     const flushCandidates = useCallback(async (peerId) => {
         const pc = peerConnections.current[peerId];
