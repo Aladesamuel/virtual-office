@@ -132,7 +132,6 @@ export default function Room() {
     <div className="workspace-container">
       {/* Top Nav */}
       <div style={{ position: 'fixed', top: '1.5rem', left: '1.5rem', zIndex: 100 }}>
-        <button className="control-btn" onClick={() => setJoined(false)} style={{ color: 'var(--danger)', marginRight: '1rem' }}><LogOut size={20} /></button>
         <span style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--primary)' }}>
           VO <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>/ {roomType}</span>
         </span>
@@ -241,6 +240,7 @@ export default function Room() {
         {canScreenShare && (roomType === 'Conference' || peerList.some(p => p.isTalking)) && (
           <button className={`control-btn ${localScreenStream ? 'active' : ''}`} onClick={localScreenStream ? stopScreenShare : startScreenShare}><Monitor size={22} /></button>
         )}
+        <button className="control-btn" onClick={() => setJoined(false)} style={{ color: 'var(--danger)', marginLeft: '0.5rem' }}><LogOut size={22} /></button>
         <div style={{ width: '1px', height: '24px', background: 'var(--border)', margin: '0 8px' }} />
         {['Available', 'Busy', 'Break'].map(s => <button key={s} onClick={() => setMyStatus(s)} style={{ width: '12px', height: '12px', borderRadius: '50%', background: `var(--${s === 'Available' ? 'success' : (s === 'Busy' ? 'danger' : 'warning')})`, transform: myStatus === s ? 'scale(1.4)' : 'scale(1)', transition: '0.2s', border: 'none', cursor: 'pointer' }} title={s} />)}
       </div>
