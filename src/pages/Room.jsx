@@ -250,6 +250,18 @@ export default function Room() {
 
   return (
     <div className="workspace-container">
+      {/* Global Overlays */}
+      {showDialer && (
+        <DialerPopup
+          peerList={peerList}
+          activePeerId={activePeerId}
+          dialingPeerId={dialingPeerId}
+          onSelect={handleDial}
+          onHangUp={handleHangUp}
+          onClose={() => setShowDialer(false)}
+        />
+      )}
+
       {/* Top Nav */}
       <div style={{ position: 'fixed', top: '1.5rem', left: '1.5rem', zIndex: 100 }}>
         <span style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--primary)' }}>
@@ -401,30 +413,18 @@ export default function Room() {
 
         {/* Dialer (Lounge only) */}
         {roomType === 'Lounge' && (
-          <>
-            {showDialer && (
-              <DialerPopup
-                peerList={peerList}
-                activePeerId={activePeerId}
-                dialingPeerId={dialingPeerId}
-                onSelect={handleDial}
-                onHangUp={handleHangUp}
-                onClose={() => setShowDialer(false)}
-              />
-            )}
-            <button
-              className={`dialer-toggle ${activePeerId || dialingPeerId ? 'dialer-toggle-active' : ''}`}
-              onClick={() => setShowDialer(prev => !prev)}
-              title="Office Dialer"
-            >
-              <div className={`dialer-knob ${activePeerId || dialingPeerId ? 'dialer-knob-right' : ''}`}>
-                <PhoneCall size={16} />
-              </div>
-              <span className="dialer-label">
-                {activePeerId ? (peers[activePeerId]?.name || 'On call') : dialingPeerId ? 'Dialing' : 'Dial'}
-              </span>
-            </button>
-          </>
+          <button
+            className={`dialer-toggle ${activePeerId || dialingPeerId ? 'dialer-toggle-active' : ''}`}
+            onClick={() => setShowDialer(prev => !prev)}
+            title="Office Dialer"
+          >
+            <div className={`dialer-knob ${activePeerId || dialingPeerId ? 'dialer-knob-right' : ''}`}>
+              <PhoneCall size={16} />
+            </div>
+            <span className="dialer-label">
+              {activePeerId ? (peers[activePeerId]?.name || 'On call') : dialingPeerId ? 'Dialing' : 'Dial'}
+            </span>
+          </button>
         )}
 
         {/* Mute (only visible while on a lounge call OR in conference) */}
