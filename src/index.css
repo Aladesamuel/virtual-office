@@ -171,6 +171,7 @@ body {
   overflow: hidden;
   background: #000;
   border: 1px solid var(--border);
+  min-height: 120px;
 }
 
 .screen-header {

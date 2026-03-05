@@ -138,19 +138,33 @@ export function useWebRTC(roomId, userName, isJoined) {
             }
         };
 
+        pc.onnegotiationneeded = async () => {
+            try {
+                if (pc.signalingState !== 'stable') return;
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+                mqttRef.current.publish(`vo/room/${roomId}/${remoteId}/sig`, JSON.stringify({
+                    type: 'off', from: myId, sdp: offer
+                }));
+            } catch (e) { console.error("[WebRTC] Negotiation Error:", e); }
+        };
+
         pc.ontrack = (event) => {
             const stream = event.streams[0] || new MediaStream([event.track]);
             const isVideo = event.track.kind === 'video';
+            const label = event.track.label.toLowerCase();
 
-            // Differentiate based on stream ID or track label (very basic heuristic)
-            const isScreen = event.streams[0]?.id.includes('screen') || event.track.label.toLowerCase().includes('screen');
+            // Much more robust check for screen share vs camera
+            const isScreen = label.includes('screen') || label.includes('monitor') || label.includes('display');
 
             if (isVideo) {
                 setPeers(prev => ({
                     ...prev,
                     [remoteId]: {
                         ...prev[remoteId],
-                        [isScreen ? 'remoteScreenStream' : 'remoteVideoStream']: stream
+                        [isScreen ? 'remoteScreenStream' : 'remoteVideoStream']: stream,
+                        // If it's a camera feed, we also trigger isTalking for UI highlighting
+                        isTalking: isVideo && !isScreen ? true : prev[remoteId]?.isTalking
                     }
                 }));
                 return;
