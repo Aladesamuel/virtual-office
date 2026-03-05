@@ -88,11 +88,16 @@ export default function Room() {
         ))}
       </div>
 
-      {/* Header */}
-      <div style={{ padding: '1.5rem 2rem', borderBottom: '1px solid var(--border)', background: 'white' }}>
-        <h1 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          OFFICE <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>Room: {roomId}</span>
+      {/* Sleek Fixed Header */}
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, padding: '1.25rem 2rem', zIndex: 50, display: 'flex', justifyContent: 'space-between', alignItems: 'center', pointerEvents: 'none' }}>
+        <h1 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--primary)', letterSpacing: '-0.02em', pointerEvents: 'auto' }}>
+          OFFICE <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>/ {roomId}</span>
         </h1>
+        <div style={{ pointerEvents: 'auto' }}>
+          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--success)', background: 'white', padding: '4px 12px', borderRadius: '99px', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
+            ● ONLINE
+          </span>
+        </div>
       </div>
 
       {/* Office Floor (Grid) */}
@@ -111,7 +116,7 @@ export default function Room() {
               <video
                 autoPlay playsInline muted
                 ref={el => { if (el) el.srcObject = localStream; }}
-                style={{ width: '100%', borderRadius: '12px', background: '#000', height: '140px', objectFit: 'cover' }}
+                style={{ width: '100%', borderRadius: '16px', background: '#000', height: '140px', objectFit: 'cover', border: '1px solid var(--border)' }}
               />
             )}
           </div>
@@ -122,18 +127,18 @@ export default function Room() {
           <div key={peer.id} className="member-tile">
             <div className={`avatar-container ${peer.isTalking ? 'talking-pulse' : ''}`}>
               <User size={30} color={peer.isTalking ? 'var(--primary)' : 'var(--text-muted)'} />
-              <div className={`status-dot status-${peer.status}`} />
+              <div className={`status-dot status-${peer.status || 'Available'}`} />
               {peer.isLocked && <div style={{ position: 'absolute', top: -5, right: -5, background: 'var(--oncall)', color: 'white', padding: '2px', borderRadius: '50%' }}><Lock size={10} /></div>}
             </div>
             <p className="member-name">{peer.name}</p>
-            <p className="member-status-text">{peer.status} {peer.isMuted ? '(Muted)' : ''}</p>
+            <p className="member-status-text">{peer.status || 'Available'} {peer.isMuted ? '(Muted)' : ''}</p>
 
             {/* Video Feed if on call and video available */}
             {peer.remoteStream && peer.remoteStream.getVideoTracks().length > 0 && (
               <video
                 autoPlay playsInline
                 ref={el => { if (el) el.srcObject = peer.remoteStream; }}
-                style={{ width: '100%', borderRadius: '12px', background: '#000', height: '140px', objectFit: 'cover', marginTop: '1rem' }}
+                style={{ width: '100%', borderRadius: '16px', background: '#000', height: '140px', objectFit: 'cover', marginTop: '1rem', border: '1px solid var(--border)' }}
               />
             )}
 
@@ -163,16 +168,16 @@ export default function Room() {
 
       {/* Join Requests Banner */}
       {joinRequests.length > 0 && (
-        <div style={{ position: 'fixed', bottom: '100px', left: '2rem', right: '2rem', background: 'var(--primary)', color: 'white', padding: '1rem 2rem', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 100, boxShadow: 'var(--shadow-lg)' }}>
-          <span><strong>{joinRequests[0].name}</strong> is knocking on your huddle...</span>
-          <div style={{ display: 'flex', gap: '1rem' }}>
-            <button onClick={() => acceptRequest(joinRequests[0].id)} className="primary-btn" style={{ background: 'white', color: 'var(--primary)', padding: '0.5rem 1rem' }}>Let in</button>
-            <button onClick={() => addNotification("Request ignored")} style={{ background: 'transparent', color: 'white', border: 'none', cursor: 'pointer' }}>Ignore</button>
+        <div style={{ position: 'fixed', bottom: '6rem', left: '50%', transform: 'translateX(-50%)', width: '90%', maxWidth: '400px', background: 'var(--primary)', color: 'white', padding: '1rem 1.5rem', borderRadius: '24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 110, boxShadow: 'var(--shadow-lg)' }}>
+          <span style={{ fontSize: '0.9rem' }}><strong>{joinRequests[0].name}</strong> is knocking...</span>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button onClick={() => acceptRequest(joinRequests[0].id)} style={{ background: 'white', color: 'var(--primary)', padding: '6px 16px', borderRadius: '12px', border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}>Let in</button>
+            <button onClick={() => addNotification("Request ignored")} style={{ background: 'rgba(255,255,255,0.2)', color: 'white', padding: '6px 12px', borderRadius: '12px', border: 'none', fontWeight: 600, cursor: 'pointer', fontSize: '0.85rem' }}>Ignore</button>
           </div>
         </div>
       )}
 
-      {/* Control Bar */}
+      {/* Floating Control Bar */}
       <div className="control-bar">
         <div className="controls-group">
           <button
@@ -180,40 +185,41 @@ export default function Room() {
             onClick={() => setIsMuted(!isMuted)}
             title={isMuted ? "Unmute" : "Mute"}
           >
-            {isMuted ? <MicOff size={20} /> : <Mic size={20} />}
+            {isMuted ? <MicOff size={18} /> : <Mic size={18} />}
           </button>
           <button
             className={`icon-btn ${isVideoEnabled ? 'active' : ''}`}
             onClick={() => setIsVideoEnabled(!isVideoEnabled)}
             title={isVideoEnabled ? "Disable Video" : "Enable Video"}
           >
-            {isVideoEnabled ? <Camera size={20} /> : <CameraOff size={20} />}
+            {isVideoEnabled ? <Camera size={18} /> : <CameraOff size={18} />}
           </button>
           <button
             className={`icon-btn ${isLocked ? 'active' : ''}`}
             onClick={() => setIsLocked(!isLocked)}
             title={isLocked ? "Unlock Space" : "Lock Space"}
           >
-            {isLocked ? <Lock size={20} /> : <Unlock size={20} />}
+            {isLocked ? <Lock size={18} /> : <Unlock size={18} />}
           </button>
         </div>
 
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div className="status-pill-group">
           {['Available', 'Busy', 'Away'].map(s => (
             <button
               key={s}
               onClick={() => setMyStatus(s)}
-              style={{ padding: '0.5rem 1rem', borderRadius: '12px', border: '1px solid var(--border)', background: myStatus === s ? 'var(--primary-subtle)' : 'white', color: myStatus === s ? 'var(--primary)' : 'var(--text-muted)', fontWeight: 700, cursor: 'pointer' }}
+              style={{ padding: '0.4rem 0.8rem', borderRadius: '99px', border: 'none', background: myStatus === s ? 'var(--primary-subtle)' : 'transparent', color: myStatus === s ? 'var(--primary)' : 'var(--text-muted)', fontWeight: 700, cursor: 'pointer', fontSize: '0.75rem', transition: '0.2s' }}
             >
               {s}
             </button>
           ))}
         </div>
 
-        <button className="icon-btn" onClick={() => setJoined(false)} style={{ color: 'var(--danger)' }}>
-          <LogOut size={20} />
+        <button className="icon-btn" onClick={() => setJoined(false)} style={{ color: 'var(--danger)', border: 'none' }}>
+          <LogOut size={18} />
         </button>
       </div>
     </div>
   );
 }
+```
