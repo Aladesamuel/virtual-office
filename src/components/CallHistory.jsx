@@ -237,5 +237,3 @@ export function CallHistory({ isOpen, onClose }) {
     </div>
   );
 }
-
-export { saveToHistory: saveCallToHistory };
