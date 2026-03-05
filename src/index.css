@@ -333,6 +333,16 @@ body {
   background: var(--bg-app);
 }
 
+@media (max-width: 768px) {
+  .room-btn-text {
+    display: none;
+  }
+
+  .room-type-btn {
+    padding: 8px 12px;
+  }
+}
+
 /* Conference / Google Meet Layouts */
 .conference-layout {
   width: 100vw;

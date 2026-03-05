@@ -8,17 +8,11 @@ const pcConfig = {
         { urls: 'stun:stun1.l.google.com:19302' },
         { urls: 'stun:stun2.l.google.com:19302' },
         { urls: 'stun:stun3.l.google.com:19302' },
-        { urls: 'stun:stun4.l.google.com:19302' },
-        { urls: 'stun:stun.ekiga.net' },
-        { urls: 'stun:stun.ideasip.com' }
+        { urls: 'stun:stun4.l.google.com:19302' }
     ],
     iceCandidatePoolSize: 10
 };
 
-/**
- * useWebRTC - The Collaboration Engine
- * Supports: HQ Audio, P2P Chat, P2P Files, and Screen Sharing.
- */
 export function useWebRTC(roomId, userName, isJoined) {
     const [peers, setPeers] = useState({});
     const [sessionStartTime] = useState(() => Date.now());
@@ -35,77 +29,70 @@ export function useWebRTC(roomId, userName, isJoined) {
     const [isLocked, setIsLocked] = useState(false);
     const [joinRequests, setJoinRequests] = useState([]);
 
-    // New Feature States
     const [localScreenStream, setLocalScreenStream] = useState(null);
+    const [localVideoStream, setLocalVideoStream] = useState(null);
     const [isVideoEnabled, setIsVideoEnabled] = useState(false);
-    const [incomingFile, setIncomingFile] = useState(null); // {name, size, progress, fromId}
+    const [incomingFile, setIncomingFile] = useState(null);
 
     const mqttRef = useRef(null);
     const localStreamRef = useRef(null);
-    const peerConnections = useRef({}); // { [peerId]: RTCPeerConnection }
-    const dataChannels = useRef({}); // { [peerId]: RTCDataChannel }
+    const peerConnections = useRef({});
+    const dataChannels = useRef({});
     const signalsQueue = useRef({});
 
-    // -----------------------------------------------------------------
-    // 1. Media Setup (Audio + Screen)
-    // -----------------------------------------------------------------
+    // 1. Media Setup
     useEffect(() => {
         if (!isJoined) return;
 
+        console.log(`[WebRTC] Requesting Media. Video: ${isVideoEnabled}`);
         navigator.mediaDevices.getUserMedia({
             audio: { echoCancellation: true, noiseSuppression: true },
-            video: isVideoEnabled
+            video: isVideoEnabled ? { width: 1280, height: 720, frameRate: 24 } : false
         })
             .then(stream => {
                 localStreamRef.current = stream;
-                // Sync tracks with state
                 stream.getAudioTracks().forEach(t => t.enabled = !isMuted);
 
-                // If video was just added, we need to add it to existing PCs
+                // CRITICAL: Update local video stream for UI
+                if (isVideoEnabled) {
+                    setLocalVideoStream(stream);
+                } else {
+                    setLocalVideoStream(null);
+                }
+
+                // Push new tracks to existing connections
                 Object.values(peerConnections.current).forEach(pc => {
                     stream.getTracks().forEach(track => {
-                        const sender = pc.getSenders().find(s => s.track?.kind === track.kind);
-                        if (!sender) pc.addTrack(track, stream);
-                        else if (sender.track !== track) sender.replaceTrack(track);
+                        const senders = pc.getSenders();
+                        const sender = senders.find(s => s.track?.kind === track.kind);
+                        if (!sender) {
+                            pc.addTrack(track, stream);
+                        } else {
+                            sender.replaceTrack(track);
+                        }
                     });
                 });
             })
             .catch(err => {
                 console.error("[WebRTC] Media Error:", err);
-                // Don't error out if just video fails
                 if (isVideoEnabled) {
                     setIsVideoEnabled(false);
-                    setError("Camera access denied.");
+                    setError("Camera not found or access denied.");
                 } else {
-                    setError("Microphone access is required.");
+                    setError("Microphone required for workspace.");
                 }
             });
 
         return () => {
             if (localStreamRef.current) localStreamRef.current.getTracks().forEach(t => t.stop());
-            if (localScreenStream) localScreenStream.getTracks().forEach(t => t.stop());
         };
     }, [isJoined, isVideoEnabled]);
 
-    // -----------------------------------------------------------------
-    // 2. Peer Connection & DataChannel Setup
-    // -----------------------------------------------------------------
     const setupDataChannel = useCallback((peerId, channel) => {
-        channel.onopen = () => console.log(`[Data] Channel with ${peerId} open.`);
         channel.onmessage = (event) => {
             const data = JSON.parse(event.data);
-
             if (data.type === 'file-start') {
-                setIncomingFile({
-                    name: data.name,
-                    size: data.size,
-                    progress: 0,
-                    fromId: peerId,
-                    chunks: []
-                });
-            } else if (data.type === 'file-chunk') {
-                // In a true implementation we'd use ArrayBuffer, but for now we handle metadata
-                setIncomingFile(prev => prev ? { ...prev, progress: data.progress } : null);
+                setIncomingFile({ name: data.name, size: data.size, progress: 0, fromId: peerId });
             }
         };
         dataChannels.current[peerId] = channel;
@@ -118,11 +105,9 @@ export function useWebRTC(roomId, userName, isJoined) {
         peerConnections.current[remoteId] = pc;
         signalsQueue.current[remoteId] = [];
 
-        // DataChannel Init
         const dc = pc.createDataChannel('office-data', { negotiated: true, id: 0 });
         setupDataChannel(remoteId, dc);
 
-        // Track Handling
         if (localStreamRef.current) {
             localStreamRef.current.getTracks().forEach(t => pc.addTrack(t, localStreamRef.current));
         }
@@ -146,16 +131,15 @@ export function useWebRTC(roomId, userName, isJoined) {
                 mqttRef.current.publish(`vo/room/${roomId}/${remoteId}/sig`, JSON.stringify({
                     type: 'off', from: myId, sdp: offer
                 }));
-            } catch (e) { console.error("[WebRTC] Negotiation Error:", e); }
+            } catch (e) { console.warn("[WebRTC] Negotiation Needed Error:", e); }
         };
 
         pc.ontrack = (event) => {
             const stream = event.streams[0] || new MediaStream([event.track]);
             const isVideo = event.track.kind === 'video';
             const label = event.track.label.toLowerCase();
-
-            // Much more robust check for screen share vs camera
             const isScreen = label.includes('screen') || label.includes('monitor') || label.includes('display');
+            console.log(`[WebRTC] Track from ${remoteId}: ${event.track.kind}, isScreen: ${isScreen}, Label: ${label}`);
 
             if (isVideo) {
                 setPeers(prev => ({
@@ -163,8 +147,7 @@ export function useWebRTC(roomId, userName, isJoined) {
                     [remoteId]: {
                         ...prev[remoteId],
                         [isScreen ? 'remoteScreenStream' : 'remoteVideoStream']: stream,
-                        // If it's a camera feed, we also trigger isTalking for UI highlighting
-                        isTalking: isVideo && !isScreen ? true : prev[remoteId]?.isTalking
+                        isTalking: !isScreen ? true : prev[remoteId]?.isTalking
                     }
                 }));
                 return;
@@ -174,12 +157,10 @@ export function useWebRTC(roomId, userName, isJoined) {
             if (!audioEl) {
                 audioEl = document.createElement('audio');
                 audioEl.id = `audio-${remoteId}`;
-                audioEl.autoplay = audioEl.playsInline = true;
+                audioEl.autoplay = true;
                 document.body.appendChild(audioEl);
             }
             audioEl.srcObject = stream;
-            audioEl.play().catch(() => { });
-
             setPeers(prev => ({ ...prev, [remoteId]: { ...prev[remoteId], isTalking: true } }));
         };
 
@@ -189,35 +170,25 @@ export function useWebRTC(roomId, userName, isJoined) {
     const flushCandidates = useCallback(async (peerId) => {
         const pc = peerConnections.current[peerId];
         if (!pc || !pc.remoteDescription || !signalsQueue.current[peerId]) return;
-
         while (signalsQueue.current[peerId].length > 0) {
             const candidate = signalsQueue.current[peerId].shift();
-            try {
-                await pc.addIceCandidate(new RTCIceCandidate(candidate));
-            } catch (e) { console.error("[WebRTC] ICE Error:", e); }
+            try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch (e) { }
         }
     }, []);
 
-    // -----------------------------------------------------------------
-    // 3. Signaling & Network
-    // -----------------------------------------------------------------
+    // Signaling
     useEffect(() => {
         if (!isJoined || !roomId) return;
-        setPeers({}); // Clear peers when entering a new room/type
+        setPeers({});
 
-        const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
-            clientId: `vo_${myId}`,
-            clean: true,
-            will: { topic: `vo/room/${roomId}/${myId}/pres`, payload: '', retain: true, qos: 1 }
-        });
+        const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', { clientId: `vo_${myId}`, clean: true });
         mqttRef.current = client;
 
         client.on('connect', () => {
             client.subscribe(`vo/room/${roomId}/+/pres`);
             client.subscribe(`vo/room/${roomId}/${myId}/sig`);
-
             client.publish(`vo/room/${roomId}/${myId}/pres`, JSON.stringify({
-                id: myId, name: userName, status: myStatus, isLocked: isLocked, isSharing: !!localScreenStream
+                id: myId, name: userName, status: myStatus, isLocked: isLocked, isSharing: !!localScreenStream, sessionStartTime
             }), { retain: true, qos: 1 });
         });
 
@@ -228,83 +199,56 @@ export function useWebRTC(roomId, userName, isJoined) {
                 if (remoteId === myId) return;
                 if (!msgStr) {
                     setPeers(prev => { const n = { ...prev }; delete n[remoteId]; return n; });
-                    const el = document.getElementById(`audio-${remoteId}`);
-                    if (el) el.remove();
                     return;
                 }
                 const payload = JSON.parse(msgStr);
-
-                // If the session identity changed (refresh), clear the old connection
-                setPeers(prev => {
-                    const oldPeer = prev[remoteId];
-                    if (oldPeer && payload.sessionStartTime && oldPeer.sessionStartTime !== payload.sessionStartTime) {
-                        console.log(`[WebRTC] Peer ${remoteId} restarted session. Cleaning old state.`);
-                        if (peerConnections.current[remoteId]) {
-                            peerConnections.current[remoteId].close();
-                            delete peerConnections.current[remoteId];
-                        }
-                    }
-                    return { ...prev, [remoteId]: { ...prev[remoteId], ...payload, lastSeen: Date.now() } };
-                });
-                return;
+                setPeers(prev => ({ ...prev, [remoteId]: { ...prev[remoteId], ...payload, lastSeen: Date.now() } }));
             }
 
             if (topic.endsWith('/sig')) {
                 const payload = JSON.parse(msgStr);
-                const fromId = payload.from;
-                const pc = getPeerConnection(fromId);
-
+                const pc = getPeerConnection(payload.from);
                 try {
-                    if (payload.type === 'req') setJoinRequests(prev => [...prev, { peerId: fromId, peerName: payload.name }]);
-                    else if (payload.type === 'acc') {
-                        const offer = await pc.createOffer();
-                        await pc.setLocalDescription(offer);
-                        client.publish(`vo/room/${roomId}/${fromId}/sig`, JSON.stringify({ type: 'off', from: myId, sdp: offer }));
-                    } else if (payload.type === 'off') {
+                    if (payload.type === 'req') setJoinRequests(prev => [...prev, { peerId: payload.from, peerName: payload.name }]);
+                    else if (payload.type === 'acc') pc.onnegotiationneeded();
+                    else if (payload.type === 'off') {
                         await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
-                        flushCandidates(fromId);
+                        flushCandidates(payload.from);
                         const answer = await pc.createAnswer();
                         await pc.setLocalDescription(answer);
-                        client.publish(`vo/room/${roomId}/${fromId}/sig`, JSON.stringify({ type: 'ans', from: myId, sdp: answer }));
+                        client.publish(`vo/room/${roomId}/${payload.from}/sig`, JSON.stringify({ type: 'ans', from: myId, sdp: answer }));
                     } else if (payload.type === 'ans') {
                         await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
-                        flushCandidates(fromId);
+                        flushCandidates(payload.from);
                     } else if (payload.type === 'ice') {
                         if (pc.remoteDescription) await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
-                        else (signalsQueue.current[fromId] = signalsQueue.current[fromId] || []).push(payload.candidate);
+                        else (signalsQueue.current[payload.from] = signalsQueue.current[payload.from] || []).push(payload.candidate);
                     }
-                } catch (e) { console.error("[WebRTC] Signal Error:", e); }
+                } catch (e) { }
             }
         });
 
         return () => {
             if (mqttRef.current) {
-                // Clear presence immediately for others
                 mqttRef.current.publish(`vo/room/${roomId}/${myId}/pres`, '', { retain: true, qos: 1 });
                 mqttRef.current.end();
             }
             Object.values(peerConnections.current).forEach(p => p.close());
         };
-    }, [isJoined, roomId, myId, getPeerConnection]);
+    }, [isJoined, roomId, myId, getPeerConnection, flushCandidates]);
 
-    // 4. HEARTBEAT & PRESENCE SYNC
+    // Presence & Pruning
     useEffect(() => {
         if (!mqttRef.current || !mqttRef.current.connected) return;
-
         const broadcast = () => {
             mqttRef.current.publish(`vo/room/${roomId}/${myId}/pres`, JSON.stringify({
-                id: myId, name: userName, status: myStatus, isLocked: isLocked,
-                isSharing: !!localScreenStream, lastSeen: Date.now(),
-                sessionStartTime
+                id: myId, name: userName, status: myStatus, isLocked, isSharing: !!localScreenStream, sessionStartTime, lastSeen: Date.now()
             }), { retain: true, qos: 1 });
         };
-
-        broadcast(); // Immediate
-        const timer = setInterval(broadcast, 30000); // Every 30s
+        const timer = setInterval(broadcast, 15000); // More frequent heartbeats
         return () => clearInterval(timer);
     }, [myStatus, isLocked, !!localScreenStream, roomId, myId, userName]);
 
-    // 5. PEER PRUNING (Anti-Ghosting)
     useEffect(() => {
         const pruner = setInterval(() => {
             const now = Date.now();
@@ -312,79 +256,30 @@ export function useWebRTC(roomId, userName, isJoined) {
                 const updated = { ...prev };
                 let changed = false;
                 Object.keys(updated).forEach(id => {
-                    // Remove if no heartbeat for 70 seconds
-                    if (updated[id].lastSeen && (now - updated[id].lastSeen > 70000)) {
-                        console.log(`[Ghost] Pruning stale peer: ${id}`);
+                    if (updated[id].lastSeen && (now - updated[id].lastSeen > 40000)) { // Prune after 40s
                         delete updated[id];
-                        if (peerConnections.current[id]) {
-                            peerConnections.current[id].close();
-                            delete peerConnections.current[id];
-                        }
-                        const el = document.getElementById(`audio-${id}`);
-                        if (el) el.remove();
+                        if (peerConnections.current[id]) { peerConnections.current[id].close(); delete peerConnections.current[id]; }
                         changed = true;
                     }
                 });
                 return changed ? updated : prev;
             });
-        }, 10000); // Check every 10s
+        }, 5000);
         return () => clearInterval(pruner);
     }, []);
 
-    // -----------------------------------------------------------------
-    // 4. API Functions (Collaboration Tools)
-    // -----------------------------------------------------------------
-    const callPeer = useCallback((id) => {
-        const pc = getPeerConnection(id);
-        return pc.createOffer()
-            .then(o => pc.setLocalDescription(o))
-            .then(() => {
-                if (mqttRef.current) {
-                    mqttRef.current.publish(`vo/room/${roomId}/${id}/sig`, JSON.stringify({
-                        type: 'off', from: myId, sdp: pc.localDescription
-                    }));
-                }
-            });
-    }, [roomId, myId, getPeerConnection]);
-
-    const hangUpPeer = useCallback((id) => {
-        if (peerConnections.current[id]) {
-            peerConnections.current[id].close();
-            delete peerConnections.current[id];
-            setPeers(prev => ({ ...prev, [id]: { ...prev[id], isTalking: false, remoteScreenStream: null } }));
-        }
-    }, []);
-
-    // 5. AUTO-HONE SCREEN (If peer shares, and we aren't connected, we should huddle to see it)
-    useEffect(() => {
-        Object.values(peers).forEach(peer => {
-            if (peer.isSharing && !peerConnections.current[peer.id]) {
-                console.log(`[Auto] Joining ${peer.name} for screen share.`);
-                callPeer(peer.id);
-            }
-        });
-    }, [peers, callPeer]);
     const startScreenShare = useCallback(async () => {
         try {
             const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
             setLocalScreenStream(stream);
-
-            // Broadcast tracks to EVERYONE in the room
-            Object.keys(peers).forEach(peerId => {
-                const pc = getPeerConnection(peerId);
-                stream.getVideoTracks().forEach(t => pc.addTrack(t, stream));
-
-                pc.createOffer().then(offer => pc.setLocalDescription(offer))
-                    .then(() => {
-                        mqttRef.current.publish(`vo/room/${roomId}/${peerId}/sig`, JSON.stringify({
-                            type: 'off', from: myId, sdp: pc.localDescription
-                        }));
-                    });
+            Object.values(peerConnections.current).forEach(pc => {
+                stream.getTracks().forEach(t => pc.addTrack(t, stream));
+                // Force offer for screen share
+                pc.onnegotiationneeded();
             });
-
             stream.getVideoTracks()[0].onended = () => stopScreenShare();
-        } catch (e) { console.error("Screen share failed:", e); }
-    }, [myId, roomId, peers, getPeerConnection]);
+        } catch (e) { }
+    }, []);
 
     const stopScreenShare = useCallback(() => {
         if (localScreenStream) {
@@ -405,30 +300,19 @@ export function useWebRTC(roomId, userName, isJoined) {
         isVideoEnabled, toggleVideo: () => setIsVideoEnabled(prev => !prev),
         joinRequests, acceptJoinRequest: (id) => mqttRef.current.publish(`vo/room/${roomId}/${id}/sig`, JSON.stringify({ type: 'acc', from: myId })),
         declineJoinRequest: (id) => setJoinRequests(prev => prev.filter(r => r.peerId !== id)),
-        callPeer, hangUpPeer,
-
-        // Collab Tools
-        startScreenShare: async () => {
-            try {
-                const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-                setLocalScreenStream(stream);
-                Object.values(peerConnections.current).forEach(pc => {
-                    stream.getTracks().forEach(t => pc.addTrack(t, stream));
-                });
-                stream.getVideoTracks()[0].onended = () => stopScreenShare();
-            } catch (e) { console.error("Screen Share Error:", e); }
+        callPeer: (id) => {
+            const pc = getPeerConnection(id);
+            pc.onnegotiationneeded();
         },
-        stopScreenShare,
-        localVideoStream: isVideoEnabled ? localStreamRef.current : null,
-        localScreenStream,
-        canScreenShare: !!navigator.mediaDevices?.getDisplayMedia,
-        sendFile: (peerId, file) => {
-            const dc = dataChannels.current[peerId];
-            if (dc && dc.readyState === 'open') {
-                dc.send(JSON.stringify({ type: 'file-start', name: file.name, size: file.size }));
-                // Full chunking logic would go here
-                alert("P2P File Transfer Started (Demo Mode)");
+        hangUpPeer: (id) => {
+            if (peerConnections.current[id]) {
+                peerConnections.current[id].close();
+                delete peerConnections.current[id];
+                setPeers(prev => ({ ...prev, [id]: { ...prev[id], remoteScreenStream: null } }));
             }
-        }
+        },
+        startScreenShare, stopScreenShare, localVideoStream, localScreenStream,
+        canScreenShare: !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia),
+        sendFile: (peerId, file) => { alert("P2P File Transfer not implemented in this demo."); }
     };
 }

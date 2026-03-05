@@ -114,7 +114,7 @@ export default function Room() {
 
   const peerList = Object.values(peers);
   const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
-  const dynamicScale = isMobile ? Math.max(0.6, 1 - (peerList.length * 0.08)) : 1;
+  const dynamicScale = isMobile ? Math.max(0.4, 1 - (peerList.length * 0.12)) : 1;
 
   // Detect active presenter
   const presenter = peerList.find(p => p.remoteScreenStream) || (localScreenStream ? { id: 'me', name: 'You', isMe: true } : null);
@@ -140,8 +140,8 @@ export default function Room() {
 
       {/* Room Toggler */}
       <div className="room-toggler">
-        <button className={`room-type-btn ${roomType === 'Lounge' ? 'active' : ''}`} onClick={() => setRoomType('Lounge')}><Coffee size={16} /> Lounge</button>
-        <button className={`room-type-btn ${roomType === 'Conference' ? 'active' : ''}`} onClick={() => setRoomType('Conference')}><Video size={16} /> Conference</button>
+        <button className={`room-type-btn ${roomType === 'Lounge' ? 'active' : ''}`} onClick={() => setRoomType('Lounge')}><Coffee size={16} /><span className="room-btn-text">Lounge</span></button>
+        <button className={`room-type-btn ${roomType === 'Conference' ? 'active' : ''}`} onClick={() => setRoomType('Conference')}><Video size={16} /><span className="room-btn-text">Conference</span></button>
       </div>
 
       {/* Join Requests */}
