@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import mqtt from 'mqtt';
 
-// Global WebRTC Configuration
+// Global WebRTC Configuration (STUN servers help bypass NAT)
 const pcConfig = {
     iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
@@ -47,7 +47,6 @@ export function useWebRTC(roomId, userName, isJoined, callbacks = {}) {
     useEffect(() => {
         if (!isJoined) return;
 
-        console.log(`[WebRTC] Requesting Media. Video: ${isVideoEnabled}`);
         navigator.mediaDevices.getUserMedia({
             audio: { echoCancellation: true, noiseSuppression: true },
             video: isVideoEnabled ? { width: 1280, height: 720, frameRate: 24 } : false
@@ -56,7 +55,6 @@ export function useWebRTC(roomId, userName, isJoined, callbacks = {}) {
                 localStreamRef.current = stream;
                 stream.getAudioTracks().forEach(t => t.enabled = !isMuted);
 
-                // CRITICAL: Update local video stream for UI
                 if (isVideoEnabled) {
                     setLocalVideoStream(stream);
                 } else {
@@ -134,7 +132,7 @@ export function useWebRTC(roomId, userName, isJoined, callbacks = {}) {
                 mqttRef.current.publish(`vo/room/${roomId}/${remoteId}/sig`, JSON.stringify({
                     type: 'off', from: myId, sdp: offer
                 }));
-            } catch (e) { console.warn("[WebRTC] Negotiation Needed Error:", e); }
+            } catch (e) { console.warn("[WebRTC] Negotiation Error", e); }
         };
 
         pc.ontrack = (event) => {
@@ -143,56 +141,35 @@ export function useWebRTC(roomId, userName, isJoined, callbacks = {}) {
             const label = event.track.label.toLowerCase();
             const isScreen = label.includes('screen') || label.includes('monitor') || label.includes('display');
 
-            console.log(`[WebRTC] Track from ${remoteId}: ${event.track.kind}, isScreen: ${isScreen}`);
-
             setPeers(prev => {
                 const peer = prev[remoteId] || {};
-                if (isVideo) {
-                    return {
-                        ...prev,
-                        [remoteId]: {
-                            ...peer,
-                            [isScreen ? 'remoteScreenStream' : 'remoteVideoStream']: stream
-                        }
-                    };
-                } else {
-                    return {
-                        ...prev,
-                        [remoteId]: {
-                            ...peer,
-                            remoteAudioStream: stream
-                        }
-                    };
-                }
+                return {
+                    ...prev,
+                    [remoteId]: {
+                        ...peer,
+                        [isVideo ? (isScreen ? 'remoteScreenStream' : 'remoteVideoStream') : 'remoteAudioStream']: stream
+                    }
+                };
             });
 
-            // If it's audio, we can setup a volume analyzer here
+            // Remote VAD
             if (!isVideo) {
                 try {
                     const audioContext = new (window.AudioContext || window.webkitAudioContext)();
                     const source = audioContext.createMediaStreamSource(stream);
                     const analyzer = audioContext.createAnalyser();
-                    analyzer.fftSize = 256;
                     source.connect(analyzer);
-
                     const dataArray = new Uint8Array(analyzer.frequencyBinCount);
-                    const checkVolume = () => {
-                        if (!peerConnections.current[remoteId]) {
-                            audioContext.close();
-                            return;
-                        }
+                    const check = () => {
+                        if (!peerConnections.current[remoteId]) { audioContext.close(); return; }
                         analyzer.getByteFrequencyData(dataArray);
-                        const average = dataArray.reduce((p, c) => p + c, 0) / dataArray.length;
-                        const isTalking = average > 10; // Threshold for talking
-
-                        setPeers(prev => {
-                            if (!prev[remoteId] || prev[remoteId].isTalking === isTalking) return prev;
-                            return { ...prev, [remoteId]: { ...prev[remoteId], isTalking } };
-                        });
-                        setTimeout(checkVolume, 200);
+                        const avg = dataArray.reduce((p, c) => p + c, 0) / dataArray.length;
+                        const isTalking = avg > 10;
+                        setPeers(prev => (prev[remoteId]?.isTalking === isTalking ? prev : { ...prev, [remoteId]: { ...prev[remoteId], isTalking } }));
+                        setTimeout(check, 250);
                     };
-                    checkVolume();
-                } catch (e) { console.error("[WebRTC] Audio Analysis Error:", e); }
+                    check();
+                } catch (e) { }
             }
         };
 
@@ -201,8 +178,8 @@ export function useWebRTC(roomId, userName, isJoined, callbacks = {}) {
 
     const flushCandidates = useCallback(async (peerId) => {
         const pc = peerConnections.current[peerId];
-        if (!pc || !pc.remoteDescription || !signalsQueue.current[peerId]) return;
-        while (signalsQueue.current[peerId].length > 0) {
+        if (!pc || !pc.remoteDescription) return;
+        while (signalsQueue.current[peerId]?.length > 0) {
             const candidate = signalsQueue.current[peerId].shift();
             try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch (e) { }
         }
@@ -220,7 +197,7 @@ export function useWebRTC(roomId, userName, isJoined, callbacks = {}) {
             client.subscribe(`vo/room/${roomId}/+/pres`);
             client.subscribe(`vo/room/${roomId}/${myId}/sig`);
             client.publish(`vo/room/${roomId}/${myId}/pres`, JSON.stringify({
-                id: myId, name: userName, status: myStatus, isLocked: isLocked, isSharing: !!localScreenStream, sessionStartTime
+                id: myId, name: userName, status: myStatus, isLocked, isSharing: !!localScreenStream, sessionStartTime
             }), { retain: true, qos: 1 });
         });
 
@@ -241,20 +218,14 @@ export function useWebRTC(roomId, userName, isJoined, callbacks = {}) {
                 const payload = JSON.parse(msgStr);
                 const pc = getPeerConnection(payload.from);
                 try {
-                    if (payload.type === 'req') setJoinRequests(prev => {
-                        if (prev.find(r => r.peerId === payload.from)) return prev;
-                        return [...prev, { peerId: payload.from, peerName: payload.name }];
-                    });
+                    if (payload.type === 'req') setJoinRequests(prev => prev.find(r => r.peerId === payload.from) ? prev : [...prev, { peerId: payload.from, peerName: payload.name }]);
                     else if (payload.type === 'cancel') {
                         setJoinRequests(prev => prev.filter(r => r.peerId !== payload.from));
                         if (callbacksRef.current.onCallCanceled) callbacksRef.current.onCallCanceled(payload.from);
                     }
-                    else if (payload.type === 'dec') {
-                        if (callbacksRef.current.onCallDeclined) callbacksRef.current.onCallDeclined(payload.from);
-                    }
+                    else if (payload.type === 'dec' && callbacksRef.current.onCallDeclined) callbacksRef.current.onCallDeclined(payload.from);
                     else if (payload.type === 'acc') {
                         if (callbacksRef.current.onCallAccepted) callbacksRef.current.onCallAccepted(payload.from);
-                        // They accepted our knock — we initiate the offer
                         const offer = await pc.createOffer();
                         await pc.setLocalDescription(offer);
                         client.publish(`vo/room/${roomId}/${payload.from}/sig`, JSON.stringify({ type: 'off', from: myId, sdp: offer }));
@@ -285,7 +256,7 @@ export function useWebRTC(roomId, userName, isJoined, callbacks = {}) {
         };
     }, [isJoined, roomId, myId, getPeerConnection, flushCandidates]);
 
-    // Presence & Pruning
+    // Heartbeats for Presence
     useEffect(() => {
         if (!mqttRef.current || !mqttRef.current.connected) return;
         const broadcast = () => {
@@ -293,10 +264,11 @@ export function useWebRTC(roomId, userName, isJoined, callbacks = {}) {
                 id: myId, name: userName, status: myStatus, isLocked, isSharing: !!localScreenStream, sessionStartTime, lastSeen: Date.now()
             }), { retain: true, qos: 1 });
         };
-        const timer = setInterval(broadcast, 15000); // More frequent heartbeats
+        const timer = setInterval(broadcast, 15000);
         return () => clearInterval(timer);
     }, [myStatus, isLocked, !!localScreenStream, roomId, myId, userName]);
 
+    // Pruning
     useEffect(() => {
         const pruner = setInterval(() => {
             const now = Date.now();
@@ -304,7 +276,7 @@ export function useWebRTC(roomId, userName, isJoined, callbacks = {}) {
                 const updated = { ...prev };
                 let changed = false;
                 Object.keys(updated).forEach(id => {
-                    if (updated[id].lastSeen && (now - updated[id].lastSeen > 40000)) { // Prune after 40s
+                    if (updated[id].lastSeen && (now - updated[id].lastSeen > 40000)) {
                         delete updated[id];
                         if (peerConnections.current[id]) { peerConnections.current[id].close(); delete peerConnections.current[id]; }
                         changed = true;
@@ -315,26 +287,6 @@ export function useWebRTC(roomId, userName, isJoined, callbacks = {}) {
         }, 5000);
         return () => clearInterval(pruner);
     }, []);
-
-    const startScreenShare = useCallback(async () => {
-        try {
-            const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-            setLocalScreenStream(stream);
-            Object.values(peerConnections.current).forEach(pc => {
-                stream.getTracks().forEach(t => pc.addTrack(t, stream));
-                // Force offer for screen share
-                pc.onnegotiationneeded();
-            });
-            stream.getVideoTracks()[0].onended = () => stopScreenShare();
-        } catch (e) { }
-    }, []);
-
-    const stopScreenShare = useCallback(() => {
-        if (localScreenStream) {
-            localScreenStream.getTracks().forEach(t => t.stop());
-            setLocalScreenStream(null);
-        }
-    }, [localScreenStream]);
 
     return {
         peers, myId, error, myStatus, setMyStatus,
@@ -355,43 +307,41 @@ export function useWebRTC(roomId, userName, isJoined, callbacks = {}) {
             mqttRef.current.publish(`vo/room/${roomId}/${id}/sig`, JSON.stringify({ type: 'dec', from: myId }));
         },
         ringPeer: (id) => {
-            if (mqttRef.current) {
-                mqttRef.current.publish(`vo/room/${roomId}/${id}/sig`, JSON.stringify({
-                    type: 'req', from: myId, name: userName
-                }));
-            }
+            mqttRef.current.publish(`vo/room/${roomId}/${id}/sig`, JSON.stringify({ type: 'req', from: myId, name: userName }));
         },
         callPeer: (id) => {
-            // Send an offer directly via MQTT to start a call
             const pc = getPeerConnection(id);
-            pc.createOffer()
-                .then(offer => pc.setLocalDescription(offer))
-                .then(() => {
-                    if (mqttRef.current) {
-                        mqttRef.current.publish(`vo/room/${roomId}/${id}/sig`, JSON.stringify({
-                            type: 'off', from: myId, sdp: pc.localDescription
-                        }));
-                    }
-                })
-                .catch(e => console.error('[WebRTC] callPeer failed:', e));
+            pc.createOffer().then(o => pc.setLocalDescription(o)).then(() => {
+                mqttRef.current.publish(`vo/room/${roomId}/${id}/sig`, JSON.stringify({ type: 'off', from: myId, sdp: pc.localDescription }));
+            });
         },
         hangUpPeer: (id) => {
-            if (mqttRef.current) {
-                // tell them we hung up (or cancelled dialing)
-                mqttRef.current.publish(`vo/room/${roomId}/${id}/sig`, JSON.stringify({ type: 'cancel', from: myId }));
-            }
+            mqttRef.current.publish(`vo/room/${roomId}/${id}/sig`, JSON.stringify({ type: 'cancel', from: myId }));
             if (peerConnections.current[id]) {
                 peerConnections.current[id].close();
                 delete peerConnections.current[id];
-                // Reset peer to a non-talking state so the Call button reappears
-                setPeers(prev => ({
-                    ...prev,
-                    [id]: { ...prev[id], isTalking: false, remoteScreenStream: null, remoteVideoStream: null }
-                }));
+                setPeers(prev => ({ ...prev, [id]: { ...prev[id], isTalking: false, remoteScreenStream: null, remoteVideoStream: null } }));
             }
         },
-        startScreenShare, stopScreenShare, localVideoStream, localScreenStream,
+        startScreenShare: async () => {
+            try {
+                const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                setLocalScreenStream(stream);
+                Object.values(peerConnections.current).forEach(pc => {
+                    stream.getTracks().forEach(t => pc.addTrack(t, stream));
+                    pc.onnegotiationneeded();
+                });
+                stream.getVideoTracks()[0].onended = () => setLocalScreenStream(null);
+            } catch (e) { }
+        },
+        stopScreenShare: () => {
+            if (localScreenStream) {
+                localScreenStream.getTracks().forEach(t => t.stop());
+                setLocalScreenStream(null);
+            }
+        },
+        localVideoStream, localScreenStream,
         canScreenShare: !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia),
-        sendFile: (peerId, file) => { alert("P2P File Transfer not implemented in this demo."); }
+        sendFile: (peerId, file) => { alert("P2P File Transfer not implemented."); }
     };
 }
