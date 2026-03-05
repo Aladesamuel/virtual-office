@@ -9,6 +9,7 @@
   --success: #22c55e;
   --warning: #f59e0b;
   --danger: #ef4444;
+  --oncall: #8b5cf6;
   --font-main: 'Plus Jakarta Sans', 'Inter', -apple-system, sans-serif;
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
@@ -162,6 +163,31 @@ body {
 
 .status-Break {
   background: var(--warning);
+}
+
+.status-OnCall {
+  background: var(--oncall);
+}
+
+/* Dialer dot variants (for selector popup) */
+.status-dot-Available {
+  background: var(--success);
+}
+
+.status-dot-Busy {
+  background: var(--danger);
+}
+
+.status-dot-Break {
+  background: var(--warning);
+}
+
+.status-dot-OnCall {
+  background: var(--oncall);
+}
+
+.status-dot-oncall {
+  background: var(--oncall);
 }
 
 /* In-Card Screen Styles */
@@ -836,4 +862,230 @@ body {
 .end-call-mini:hover {
   background: var(--danger);
   color: white;
+}
+
+/* ===========================
+   Dialer Toggle Slider
+================================= */
+.dialer-toggle {
+  display: flex;
+  align-items: center;
+  background: var(--bg-app);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  width: 90px;
+  height: 44px;
+  padding: 4px;
+  position: relative;
+  cursor: pointer;
+  transition: 0.3s;
+}
+
+.dialer-toggle-active {
+  background: var(--primary-subtle);
+  border-color: var(--primary);
+}
+
+.dialer-knob {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 34px;
+  height: 34px;
+  background: white;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--primary);
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  z-index: 2;
+}
+
+.dialer-knob-right {
+  transform: translateX(46px);
+  background: var(--primary);
+  color: white;
+}
+
+.dialer-label {
+  width: 100%;
+  text-align: right;
+  padding-right: 12px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  z-index: 1;
+  transition: 0.3s;
+}
+
+.dialer-toggle-active .dialer-label {
+  text-align: left;
+  padding-left: 12px;
+  padding-right: 0;
+  color: var(--primary);
+}
+
+/* ===========================
+   Dialer Popup
+================================= */
+.dialer-popup {
+  position: absolute;
+  bottom: calc(100% + 14px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 280px;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  box-shadow: var(--shadow-lg);
+  padding: 12px;
+  z-index: 300;
+  animation: dialer-in 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes dialer-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+.dialer-popup-arrow {
+  position: absolute;
+  bottom: -7px;
+  left: 50%;
+  transform: translateX(-50%) rotate(45deg);
+  width: 14px;
+  height: 14px;
+  background: white;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.dialer-popup-title {
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: var(--text-main);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 4px 8px 12px 8px;
+  border-bottom: 1px solid var(--bg-app);
+  margin-bottom: 8px;
+}
+
+.dialer-empty {
+  text-align: center;
+  padding: 16px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.dialer-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px;
+  border: none;
+  background: transparent;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: 0.15s;
+  text-align: left;
+  font-family: inherit;
+  margin-bottom: 2px;
+}
+
+.dialer-row:hover:not(:disabled) {
+  background: var(--bg-app);
+}
+
+.dialer-row:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.dialer-row-active {
+  background: var(--primary-subtle);
+}
+
+.dialer-avatar {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--bg-app);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.dialer-row-active .dialer-avatar {
+  background: rgba(79, 70, 229, 0.15);
+  color: var(--primary);
+}
+
+.dialer-dot {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid white;
+}
+
+.dialer-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.dialer-name {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dialer-status-text {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.dialer-action {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.dialer-call {
+  background: var(--primary);
+  color: white;
+}
+
+.dialer-end {
+  background: var(--danger);
+  color: white;
+}
+
+.dialer-busy {
+  background: var(--border);
+  color: var(--text-muted);
 }
