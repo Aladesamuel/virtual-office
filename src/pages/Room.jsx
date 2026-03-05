@@ -203,14 +203,14 @@ export default function Room() {
               <div className="side-grid">
                 {/* Local Tile */}
                 <div className={`meeting-tile ${!isMuted ? 'active-speaker' : ''}`}>
-                  <div className="tile-avatar"><User size={32} /></div>
-                  <div className="tile-info">{isMuted ? <MicOff size={14} color="var(--danger)" /> : <Mic size={14} color="var(--success)" />}<span>You</span></div>
+                  <div className="tile-avatar"><User size={24} /></div>
+                  <div className="tile-info">{isMuted ? <MicOff size={12} color="var(--danger)" /> : <Mic size={12} color="var(--success)" />}<span>You</span></div>
                 </div>
                 {/* Peer Tiles */}
                 {peerList.filter(p => p.id !== presenter.id).map(peer => (
                   <div key={peer.id} className={`meeting-tile ${peer.isTalking ? 'active-speaker' : ''}`}>
-                    <div className="tile-avatar"><User size={32} /></div>
-                    <div className="tile-info">{!peer.isTalking ? <MicOff size={14} color="var(--danger)" /> : <Mic size={14} color="var(--success)" />}<span>{peer.name}</span></div>
+                    <div className="tile-avatar"><User size={24} /></div>
+                    <div className="tile-info">{!peer.isTalking ? <MicOff size={12} color="var(--danger)" /> : <Mic size={12} color="var(--success)" />}<span>{peer.name}</span></div>
                   </div>
                 ))}
               </div>
@@ -225,7 +225,11 @@ export default function Room() {
               {/* Peer Tiles */}
               {peerList.map(peer => (
                 <div key={peer.id} className={`meeting-tile ${peer.isTalking ? 'active-speaker' : ''}`}>
-                  <div className="tile-avatar"><User size={48} /></div>
+                  {peer.remoteScreenStream ? (
+                    <video autoPlay playsInline ref={el => { if (el) el.srcObject = peer.remoteScreenStream; }} className="meeting-video" />
+                  ) : (
+                    <div className="tile-avatar"><User size={48} /></div>
+                  )}
                   <div className="tile-info">{!peer.isTalking ? <MicOff size={14} color="var(--danger)" /> : <Mic size={14} color="var(--success)" />}<span>{peer.name}</span></div>
                 </div>
               ))}
