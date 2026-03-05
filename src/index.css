@@ -928,86 +928,202 @@ body {
 }
 
 /* ===========================
-   Dialer Popup
+   Dialer Bottom Sheet
 ================================= */
-.dialer-overlay {
+.dialer-fixed-overlay {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: transparent;
-  z-index: 299;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+  z-index: 999;
+  animation: fade-in 0.2s ease;
 }
 
-.dialer-popup {
-  position: absolute;
-  bottom: calc(100% + 14px);
-  left: 50%;
-  transform: translateX(-50%);
-  width: 280px;
-  background: white;
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  box-shadow: var(--shadow-lg);
-  padding: 12px;
-  z-index: 300;
-  animation: dialer-in 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  display: flex;
-  flex-direction: column;
-  max-height: 400px;
-}
-
-@keyframes dialer-in {
+@keyframes fade-in {
   from {
     opacity: 0;
-    transform: translate(-50%, 10px);
   }
 
   to {
     opacity: 1;
-    transform: translate(-50%, 0);
   }
 }
 
-.dialer-popup-header {
+.dialer-bottom-sheet {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: white;
+  border-top-left-radius: 24px;
+  border-top-right-radius: 24px;
+  max-height: 80vh;
+  z-index: 1000;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  animation: sheet-slide-up 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.1);
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.1);
+}
+
+@media (min-width: 769px) {
+  .dialer-bottom-sheet {
+    width: 360px;
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    bottom: 2rem;
+    border-radius: 24px;
+  }
+}
+
+@keyframes sheet-slide-up {
+  from {
+    transform: translateY(100%);
+  }
+
+  to {
+    transform: translateY(0);
+  }
+}
+
+.dialer-sheet-handle {
+  width: 40px;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  margin: 0 auto 16px auto;
+  cursor: pointer;
+}
+
+.dialer-sheet-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 4px 8px 12px 8px;
-  border-bottom: 1px solid var(--bg-app);
-  margin-bottom: 8px;
+  margin-bottom: 20px;
+  padding: 0 4px;
 }
 
-.dialer-popup-title {
-  font-size: 0.7rem;
+.dialer-sheet-title {
+  font-size: 1.1rem;
   font-weight: 800;
   color: var(--text-main);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
   margin: 0;
 }
 
-.dialer-close-btn {
-  background: none;
+.dialer-sheet-close {
+  background: var(--primary-subtle);
+  color: var(--primary);
   border: none;
-  font-size: 1.25rem;
-  color: var(--text-muted);
-  cursor: pointer;
-  line-height: 1;
-  padding: 0;
+  padding: 6px 16px;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 0.85rem;
 }
 
-.dialer-scroll-area {
+.dialer-sheet-content {
   overflow-y: auto;
+  padding-bottom: 20px;
+}
+
+.dialer-sheet-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px;
+  border-radius: 16px;
+  transition: 0.1s;
+  cursor: pointer;
+}
+
+.dialer-sheet-row:active {
+  background: var(--bg-app);
+}
+
+.sheet-avatar {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  background: var(--bg-app);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
+
+.sheet-status {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 3px solid white;
+}
+
+.dot-Available {
+  background: var(--success);
+}
+
+.dot-Busy {
+  background: var(--danger);
+}
+
+.dot-OnCall {
+  background: var(--oncall);
+}
+
+.dot-oncall {
+  background: var(--oncall);
+}
+
+.sheet-info {
   flex: 1;
 }
 
-.dialer-empty {
-  text-align: center;
-  padding: 16px;
-  font-size: 0.85rem;
+.sheet-name {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--text-main);
+  margin: 0;
+}
+
+.sheet-status-text {
+  font-size: 0.8rem;
   color: var(--text-muted);
+  margin: 0;
+}
+
+.btn-action {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+}
+
+.btn-action.call {
+  background: var(--primary);
+}
+
+.btn-action.end {
+  background: var(--danger);
+}
+
+.badge-busy {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: var(--bg-app);
+  padding: 4px 10px;
+  border-radius: 8px;
 }
 
 .dialer-row {

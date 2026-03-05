@@ -9,52 +9,63 @@ import { sounds } from '../utils/sounds';
 
 // ─── Dialer Popup ─────────────────────────────────────────────────────────────
 function DialerPopup({ peerList, activePeerId, dialingPeerId, onSelect, onHangUp, onClose }) {
+  // Use dummy data if nobody is online, just so you can see the UI working
+  const displayPeers = peerList.length > 0 ? peerList : [
+    { id: 'dummy-1', name: 'Sample Teammate', status: 'Available' },
+    { id: 'dummy-2', name: 'Busy Colleague', status: 'Busy' }
+  ];
+
   return (
     <>
-      <div className="dialer-overlay" onClick={onClose} />
-      <div className="dialer-popup">
-        <div className="dialer-popup-header">
-          <p className="dialer-popup-title">
-            {activePeerId ? '📞 Active Call' : '☎️ Office Dialer'}
-          </p>
-          <button className="dialer-close-btn" onClick={onClose}>&times;</button>
+      <div className="dialer-fixed-overlay" onClick={onClose} />
+      <div className="dialer-bottom-sheet">
+        <div className="dialer-sheet-handle" onClick={onClose} />
+
+        <div className="dialer-sheet-header">
+          <h3 className="dialer-sheet-title">
+            {activePeerId ? '📞 In Call' : dialingPeerId ? '☎️ Dialing...' : 'Office Dialer'}
+          </h3>
+          <button className="dialer-sheet-close" onClick={onClose}>Done</button>
         </div>
 
-        <div className="dialer-scroll-area">
-          {peerList.length === 0 ? (
-            <div className="dialer-empty">
-              <p>No one else is online</p>
-              <p style={{ fontSize: '0.72rem', opacity: 0.6, marginTop: 4 }}>Share the room link to invite teammates</p>
-            </div>
-          ) : (
-            peerList.map(peer => {
-              const isActive = peer.id === activePeerId;
-              const isDialing = peer.id === dialingPeerId;
-              const isOnCall = peer.status === 'OnCall' && !isActive;
-              return (
-                <button
-                  key={peer.id}
-                  className={`dialer-row ${isActive || isDialing ? 'dialer-row-active' : ''}`}
-                  onClick={() => (isActive || isDialing) ? onHangUp(peer.id) : (!isOnCall ? onSelect(peer.id) : null)}
-                  disabled={isOnCall && !isActive && !isDialing}
-                >
-                  <div className="dialer-avatar">
-                    <User size={15} />
-                    <span className={`dialer-dot status-dot-${isActive || isDialing ? 'oncall' : (peer.status || 'Available')}`} />
-                  </div>
-                  <div className="dialer-info">
-                    <span className="dialer-name">{peer.name}</span>
-                    <span className="dialer-status-text">
-                      {isActive ? 'On call with you' : isDialing ? 'Dialing...' : (peer.status === 'OnCall' ? 'On another call' : (peer.status || 'Available'))}
-                    </span>
-                  </div>
-                  <div className={`dialer-action ${isActive || isDialing ? 'dialer-end' : isOnCall ? 'dialer-busy' : 'dialer-call'}`}>
-                    {isActive || isDialing ? <><PhoneOff size={13} /> {isActive ? 'End' : 'Cancel'}</> : isOnCall ? 'Busy' : <><PhoneCall size={13} /> Dial</>}
-                  </div>
-                </button>
-              );
-            })
-          )}
+        <div className="dialer-sheet-content">
+          {displayPeers.map(peer => {
+            const isActive = peer.id === activePeerId;
+            const isDialing = peer.id === dialingPeerId;
+            const isOnCall = peer.status === 'OnCall' && !isActive;
+            const isDummy = peer.id.startsWith('dummy');
+
+            return (
+              <div
+                key={peer.id}
+                className={`dialer-sheet-row ${isActive || isDialing ? 'row-active' : ''}`}
+                onClick={() => {
+                  if (isDummy) return;
+                  isActive || isDialing ? onHangUp(peer.id) : (!isOnCall ? onSelect(peer.id) : null);
+                }}
+              >
+                <div className="sheet-avatar">
+                  <User size={18} />
+                  <span className={`sheet-status dot-${peer.status === 'OnCall' || isActive ? 'oncall' : (peer.status || 'Available')}`} />
+                </div>
+
+                <div className="sheet-info">
+                  <p className="sheet-name">{peer.name}</p>
+                  <p className="sheet-status-text">{peer.status || 'Available'}</p>
+                </div>
+
+                <div className="sheet-actions">
+                  {isActive || isDialing ? (
+                    <button className="btn-action end"><PhoneOff size={14} /></button>
+                  ) : isOnCall ? (
+                    <span className="badge-busy">Busy</span>
+                  ) : (
+                    <button className="btn-action call"><PhoneCall size={14} /></button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
     </>
