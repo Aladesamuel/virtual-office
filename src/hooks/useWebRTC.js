@@ -43,16 +43,29 @@ export function useWebRTC(roomId, userName, isJoined) {
                 Object.values(peerConnections.current).forEach(pc => {
                     stream.getTracks().forEach(track => {
                         const sender = pc.getSenders().find(s => s.track?.kind === track.kind);
-                        if (sender) sender.replaceTrack(track);
+                        if (sender) sender.replaceTrack(track).catch(err => console.error('Replace track error:', err));
                         else pc.addTrack(track, stream);
                     });
                 });
             })
-            .catch(err => console.error("Media Error:", err));
+            .catch(err => {
+                console.error("Media Error:", err.name, err.message);
+                if (err.name === 'NotAllowedError') {
+                    console.error('Microphone permission denied');
+                } else if (err.name === 'NotFoundError') {
+                    console.error('No microphone found');
+                }
+            });
 
         return () => {
             if (localStreamRef.current) {
-                localStreamRef.current.getTracks().forEach(t => t.stop());
+                localStreamRef.current.getTracks().forEach(t => {
+                    try {
+                        t.stop();
+                    } catch (err) {
+                        console.error('Error stopping track:', err);
+                    }
+                });
             }
         };
     }, [isJoined]);

@@ -2,10 +2,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   User, Mic, MicOff, Phone, LogOut,
-  Lock, Unlock, Hand, Bell, UserRound
+  Lock, Unlock, Hand, Bell, UserRound, Clock
 } from 'lucide-react';
 import { useWebRTC } from '../hooks/useWebRTC';
 import { ActiveCallModal } from '../components/ActiveCallModal';
+import { ConnectionQuality } from '../components/ConnectionQuality';
+import { DoNotDisturb } from '../components/DoNotDisturb';
+import { CallHistory } from '../components/CallHistory';
 
 export default function Room() {
   const { roomId } = useParams();
@@ -15,6 +18,9 @@ export default function Room() {
   const [activePeerId, setActivePeerId] = useState(null);
   const [callDuration, setCallDuration] = useState(0);
   const [groupCallPeers, setGroupCallPeers] = useState([]);
+  const [dndEnabled, setDndEnabled] = useState(() => localStorage.getItem('vo_dnd') === 'true');
+  const [showCallHistory, setShowCallHistory] = useState(false);
+  const [peerConnections, setPeerConnections] = useState({});
   const callStartTime = useRef(null);
 
   const {
@@ -45,9 +51,40 @@ export default function Room() {
     setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== id)), 4000);
   };
 
+  // Do Not Disturb handler
+  useEffect(() => {
+    localStorage.setItem('vo_dnd', String(dndEnabled));
+  }, [dndEnabled]);
+
+  // Handle auto-reject for DND mode
+  useEffect(() => {
+    if (dndEnabled && joinRequests.length > 0) {
+      joinRequests.forEach(request => {
+        setTimeout(() => {
+          addNotification(`Missed call from ${request.name} (DND enabled)`);
+        }, 100);
+      });
+    }
+  }, [joinRequests, dndEnabled]);
+
   // Call duration timer
   useEffect(() => {
     if (!activePeerId) {
+      if (callDuration > 0) {
+        // Save call to history
+        const peerName = peers[activePeerId]?.name || 'Unknown';
+        const stored = JSON.parse(localStorage.getItem('vo_call_history') || '[]');
+        stored.unshift({
+          id: `${Date.now()}-${Math.random()}`,
+          peerName,
+          duration: callDuration,
+          timestamp: Date.now(),
+          date: new Date().toLocaleDateString(),
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        });
+        stored.splice(50);
+        localStorage.setItem('vo_call_history', JSON.stringify(stored));
+      }
       setCallDuration(0);
       callStartTime.current = null;
       return;
@@ -60,7 +97,7 @@ export default function Room() {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [activePeerId]);
+  }, [activePeerId, peers]);
 
   // Update timer display
   useEffect(() => {
@@ -124,7 +161,11 @@ export default function Room() {
         <h1 className="room-header-title">
           OFFICE <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>/ {roomId.slice(0, 8)}</span>
         </h1>
-        <span className="room-header-status">● ONLINE</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', position: 'relative' }}>
+          {activePeerId && <ConnectionQuality peerConnection={peerConnections[activePeerId]} />}
+          {dndEnabled && <div className="dnd-badge">DND</div>}
+          <span className="room-header-status">● ONLINE</span>
+        </div>
       </div>
 
       {/* Office Floor (Grid) */}
@@ -237,6 +278,16 @@ export default function Room() {
         </div>
 
         <button
+          className="icon-btn"
+          onClick={() => setShowCallHistory(true)}
+          title="Call History"
+        >
+          <Clock size={18} />
+        </button>
+
+        <DoNotDisturb isEnabled={dndEnabled} onChange={setDndEnabled} />
+
+        <button
           className={`icon-btn ${isLocked ? 'active' : ''}`}
           onClick={() => setIsLocked(!isLocked)}
           title={isLocked ? "Unlock Space" : "Lock Space"}
@@ -248,6 +299,9 @@ export default function Room() {
           <LogOut size={18} />
         </button>
       </div>
+
+      {/* Call History Modal */}
+      <CallHistory isOpen={showCallHistory} onClose={() => setShowCallHistory(false)} />
     </div>
   );
 }

@@ -21,18 +21,21 @@ export default function Home() {
   };
 
   return (
-    <div style={{
-      height: '100vh',
-      background: 'radial-gradient(circle at 10% 20%, rgba(79, 70, 229, 0.05) 0%, rgba(255,255,255,1) 90%)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      fontFamily: 'var(--font-main)'
-    }}>
+    <main
+      role="main"
+      style={{
+        height: '100vh',
+        background: 'radial-gradient(circle at 10% 20%, rgba(79, 70, 229, 0.05) 0%, rgba(255,255,255,1) 90%)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontFamily: 'var(--font-main)'
+      }}
+    >
       <div style={{ maxWidth: '1100px', width: '100%', padding: '2rem', display: 'flex', alignItems: 'center', gap: '5rem' }}>
 
         {/* Content Side */}
-        <div style={{ flex: 1.2 }}>
+        <section aria-label="Virtual Office introduction" style={{ flex: 1.2 }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 16px', borderRadius: '99px', background: 'var(--primary-subtle)', color: 'var(--primary)', fontWeight: 700, fontSize: '0.8rem', marginBottom: '2rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             <Zap size={14} fill="var(--primary)" />
             Real-time Audio Workspace
@@ -59,22 +62,22 @@ export default function Home() {
               <ArrowRight size={20} />
             </button>
 
-            <div style={{ display: 'flex', gap: '2.5rem', marginTop: '1rem', flexWrap: 'wrap' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--text-muted)', fontSize: '0.9rem', fontWeight: 500 }}>
-                <div style={{ width: '32px', height: '32px', borderRadius: '10px', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--shadow-sm)' }}>
+            <ul style={{ display: 'flex', gap: '2.5rem', marginTop: '1rem', flexWrap: 'wrap', listStyle: 'none', padding: 0, margin: 0 }}>
+              <li style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--text-muted)', fontSize: '0.9rem', fontWeight: 500 }}>
+                <div aria-label="Secure" style={{ width: '32px', height: '32px', borderRadius: '10px', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--shadow-sm)' }}>
                   <ShieldCheck size={18} color="var(--primary)" />
                 </div>
                 Private & Secure
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--text-muted)', fontSize: '0.9rem', fontWeight: 500 }}>
-                <div style={{ width: '32px', height: '32px', borderRadius: '10px', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--shadow-sm)' }}>
+              </li>
+              <li style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--text-muted)', fontSize: '0.9rem', fontWeight: 500 }}>
+                <div aria-label="No setup required" style={{ width: '32px', height: '32px', borderRadius: '10px', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--shadow-sm)' }}>
                   <Zap size={18} color="var(--primary)" />
                 </div>
                 Zero Setup
-              </div>
-            </div>
+              </li>
+            </ul>
           </div>
-        </div>
+        </section>
 
         {/* Visual Side (Preview of Draggable Cards) */}
         <div className="home-visual" style={{ flex: 1, position: 'relative', height: '500px' }}>
@@ -113,7 +116,7 @@ export default function Home() {
                         text-align: center;
                         gap: 3rem;
                     }
-                    div[style*="flex: 1.2"] {
+                    section[aria-label="Virtual Office introduction"] {
                         display: flex;
                         flex-direction: column;
                         align-items: center;
@@ -121,6 +124,6 @@ export default function Home() {
                     h1 { font-size: 3rem !important; }
                 }
             `}</style>
-    </div>
+    </main>
   );
 }
