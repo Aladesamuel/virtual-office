@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import {
-  Mic, MicOff, UserRound, PhoneCall, PhoneOff, Lock,
-  Monitor, MonitorOff, User, LogOut, Coffee, Video, Camera, CameraOff, Check
+  Mic, MicOff, UserRound, PhoneOff, Lock,
+  Monitor, MonitorOff, User, LogOut, Coffee, Video, Camera, CameraOff,
+  ChevronUp, Users
 } from 'lucide-react';
 import { useWebRTC } from '../hooks/useWebRTC';
 
@@ -19,7 +20,6 @@ function DraggableCard({ children, initialX, initialY, onFileDrop, peerId, scale
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
   };
-
   const handleTouchStart = e => {
     if (e.target.closest('button, input')) return;
     const t = e.touches[0];
@@ -28,12 +28,10 @@ function DraggableCard({ children, initialX, initialY, onFileDrop, peerId, scale
     document.addEventListener('touchmove', handleTouchMove, { passive: false });
     document.addEventListener('touchend', handleTouchEnd);
   };
-
   const handleMouseMove = e => setPos({ x: e.clientX - offset.current.x, y: e.clientY - offset.current.y });
   const handleTouchMove = e => { e.preventDefault(); const t = e.touches[0]; setPos({ x: t.clientX - offset.current.x, y: t.clientY - offset.current.y }); };
   const handleMouseUp = () => { setDragging(false); document.removeEventListener('mousemove', handleMouseMove); document.removeEventListener('mouseup', handleMouseUp); };
   const handleTouchEnd = () => { setDragging(false); document.removeEventListener('touchmove', handleTouchMove); document.removeEventListener('touchend', handleTouchEnd); };
-
   const onDragOver = e => { e.preventDefault(); setIsOver(true); };
   const onDragLeave = () => setIsOver(false);
   const onDrop = e => {
@@ -46,29 +44,70 @@ function DraggableCard({ children, initialX, initialY, onFileDrop, peerId, scale
   return (
     <div
       className={`peer-card ${isOver ? 'file-over' : ''}`}
-      style={{
-        left: pos.x, top: pos.y,
-        cursor: dragging ? 'grabbing' : 'grab',
-        touchAction: 'none',
-        '--card-scale': scale
-      }}
-      onMouseDown={handleMouseDown}
-      onTouchStart={handleTouchStart}
-      onDragOver={onDragOver}
-      onDragLeave={onDragLeave}
-      onDrop={onDrop}
+      style={{ left: pos.x, top: pos.y, cursor: dragging ? 'grabbing' : 'grab', touchAction: 'none', '--card-scale': scale }}
+      onMouseDown={handleMouseDown} onTouchStart={handleTouchStart}
+      onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}
     >
       {children}
     </div>
   );
 }
 
+// ─── Peer Selector Popover ────────────────────────────────────────────────────
+function PeerSelector({ peerList, activePeerId, onSelect, onHangUp, onClose }) {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const handler = e => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
+    document.addEventListener('mousedown', handler);
+    document.addEventListener('touchstart', handler);
+    return () => { document.removeEventListener('mousedown', handler); document.removeEventListener('touchstart', handler); };
+  }, [onClose]);
+
+  return (
+    <div className="peer-selector" ref={ref}>
+      <div className="peer-selector-arrow" />
+      <p className="peer-selector-label">
+        {activePeerId ? 'On a call' : 'Who do you want to talk to?'}
+      </p>
+      {peerList.length === 0 && (
+        <p className="peer-selector-empty">No one else is online yet</p>
+      )}
+      {peerList.map(peer => {
+        const isActive = peer.id === activePeerId;
+        return (
+          <button
+            key={peer.id}
+            className={`peer-selector-row ${isActive ? 'active' : ''}`}
+            onClick={() => isActive ? onHangUp(peer.id) : onSelect(peer.id)}
+          >
+            <div className="selector-avatar">
+              <User size={16} />
+              <span className="online-dot-sm" />
+            </div>
+            <div className="selector-info">
+              <span className="selector-name">{peer.name}</span>
+              <span className="selector-status">{isActive ? 'On call with you' : (peer.isTalking ? 'In another call' : (peer.status || 'Available'))}</span>
+            </div>
+            <div className={`selector-action-pill ${isActive ? 'end' : 'call'}`}>
+              {isActive ? <><PhoneOff size={12} /> End</> : <><Mic size={12} /> Call</>}
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Main Room Component ──────────────────────────────────────────────────────
 export default function Room() {
   const { roomId: urlRoomId } = useParams();
   const [joined, setJoined] = useState(false);
   const [name, setName] = useState(() => localStorage.getItem('vo_username') || '');
   const [showStatusMenu, setShowStatusMenu] = useState(false);
   const [roomType, setRoomType] = useState('Lounge');
+  const [showPeerSelector, setShowPeerSelector] = useState(false);
+  const [activePeerId, setActivePeerId] = useState(null); // who we're calling
 
   const actualRoomId = `${urlRoomId}-${roomType.toLowerCase()}`;
 
@@ -88,9 +127,39 @@ export default function Room() {
     }
   }, [peers, roomType, joined, myId, callPeer]);
 
+  // If active peer disconnects, clear state
+  useEffect(() => {
+    if (activePeerId && !peers[activePeerId]) {
+      setActivePeerId(null);
+    }
+  }, [peers, activePeerId]);
+
   const handleJoin = (e) => {
     e.preventDefault();
     if (name.trim()) { localStorage.setItem('vo_username', name); setJoined(true); }
+  };
+
+  const handleSelectPeer = (id) => {
+    setActivePeerId(id);
+    callPeer(id);
+    setShowPeerSelector(false);
+  };
+
+  const handleHangUp = (id) => {
+    hangUpPeer(id);
+    setActivePeerId(null);
+    setShowPeerSelector(false);
+  };
+
+  // Clicking the mic button:
+  // - If no one selected yet → open selector
+  // - If on a call → toggle mute as normal
+  const handleMicClick = () => {
+    if (activePeerId) {
+      toggleMute();
+    } else {
+      setShowPeerSelector(prev => !prev);
+    }
   };
 
   if (!joined) {
@@ -126,6 +195,8 @@ export default function Room() {
     return { x: bx + (index * 15), y: by + (index * 15) };
   };
 
+  const activePeer = activePeerId ? peers[activePeerId] : null;
+
   return (
     <div className="workspace-container">
       {/* Top Nav */}
@@ -151,11 +222,20 @@ export default function Room() {
         <div className="request-banner">
           <div className="incoming-call-ring" />
           <span><strong>{joinRequests[0].peerName}</strong> is calling...</span>
-          <button onClick={() => acceptJoinRequest(joinRequests[0].peerId)} className="btn btn-primary">
-            <PhoneCall size={14} /> Answer
+          <button onClick={() => { acceptJoinRequest(joinRequests[0].peerId); setActivePeerId(joinRequests[0].peerId); }} className="btn btn-primary">
+            <Mic size={14} /> Answer
           </button>
-          <button onClick={() => declineJoinRequest(joinRequests[0].peerId)} className="btn btn-ghost">
-            <PhoneOff size={14} /> Decline
+          <button onClick={() => declineJoinRequest(joinRequests[0].peerId)} className="btn btn-ghost">Decline</button>
+        </div>
+      )}
+
+      {/* Active Call Pill (top of screen) */}
+      {activePeer && (
+        <div className="active-call-pill">
+          <div className="call-dot-anim" />
+          <span>In call with <strong>{activePeer.name}</strong></span>
+          <button className="end-call-mini" onClick={() => handleHangUp(activePeerId)}>
+            <PhoneOff size={14} />
           </button>
         </div>
       )}
@@ -182,8 +262,8 @@ export default function Room() {
                 </div>
               ) : (
                 <div onClick={() => setShowStatusMenu(!showStatusMenu)} style={{ position: 'relative' }}>
-                  <div className={`peer-avatar ${!isMuted ? 'talking-pulse' : ''}`} style={{ cursor: 'pointer' }}>
-                    <User size={30} color={!isMuted ? 'var(--primary)' : 'var(--text-muted)'} />
+                  <div className={`peer-avatar ${!isMuted && activePeer ? 'talking-pulse' : ''}`} style={{ cursor: 'pointer' }}>
+                    <User size={30} color={activePeer && !isMuted ? 'var(--primary)' : 'var(--text-muted)'} />
                     <div className={`status-indicator status-${myStatus}`} />
                   </div>
                   {showStatusMenu && (
@@ -195,12 +275,12 @@ export default function Room() {
                   )}
                 </div>
               )}
-              <h3 style={{ fontSize: '1rem', fontWeight: 700. marginTop: '0.5rem' }}>{name} <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: '0.8rem' }}>(You)</span></h3>
+              <h3 style={{ fontSize: '1rem', fontWeight: 700, marginTop: '0.5rem' }}>{name} <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: '0.8rem' }}>(You)</span></h3>
               <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{myStatus}</p>
             </div>
           </DraggableCard>
 
-          {/* Peer Cards */}
+          {/* Peer Cards — presence only, no call buttons */}
           {peerList.map((peer, index) => (
             <DraggableCard key={peer.id}
               initialX={getInitialPos(index + 1, 'peer').x}
@@ -218,39 +298,15 @@ export default function Room() {
                     <video autoPlay playsInline ref={el => { if (el) el.srcObject = peer.remoteVideoStream; }} className="card-video" />
                   </div>
                 ) : (
-                  <div className={`peer-avatar ${peer.isTalking ? 'talking-pulse' : ''}`}>
-                    <User size={30} color={peer.isTalking ? 'var(--primary)' : 'var(--text-muted)'} />
+                  <div className={`peer-avatar ${peer.id === activePeerId ? 'talking-pulse' : ''}`}>
+                    <User size={30} color={peer.id === activePeerId ? 'var(--primary)' : 'var(--text-muted)'} />
                     <div className={`status-indicator status-${peer.status || 'Available'}`} />
                   </div>
                 )}
-
-                {/* Card Footer */}
-                <div className="card-footer">
-                  <div>
-                    <h3 className="card-peer-name">{peer.name}</h3>
-                    <p className="card-peer-status">{peer.isTalking ? 'On call' : (peer.status || 'Available')}</p>
-                  </div>
-                  <div>
-                    {peer.isTalking ? (
-                      <button
-                        onClick={() => hangUpPeer(peer.id)}
-                        className="call-pill end-call"
-                        title="End call"
-                      >
-                        <PhoneOff size={14} /> End
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => callPeer(peer.id)}
-                        className={`call-pill start-call ${peer.isLocked ? 'locked' : ''}`}
-                        title={peer.isLocked ? 'Locked' : 'Start call'}
-                      >
-                        {peer.isLocked ? <Lock size={14} /> : <PhoneCall size={14} />}
-                        {peer.isLocked ? 'Locked' : 'Call'}
-                      </button>
-                    )}
-                  </div>
-                </div>
+                <h3 style={{ fontSize: '1rem', fontWeight: 700, marginTop: '0.5rem' }}>{peer.name}</h3>
+                <p style={{ fontSize: '0.75rem', color: peer.id === activePeerId ? 'var(--primary)' : 'var(--text-muted)', fontWeight: peer.id === activePeerId ? 700 : 400 }}>
+                  {peer.id === activePeerId ? '🔊 On call' : (peer.isTalking ? 'In a call' : (peer.status || 'Available'))}
+                </p>
               </div>
             </DraggableCard>
           ))}
@@ -311,16 +367,58 @@ export default function Room() {
         </div>
       )}
 
-      {/* Control Bar */}
-      <div className="control-bar">
-        <button className={`control-btn ${!isMuted ? 'active' : ''}`} onClick={toggleMute}>{isMuted ? <MicOff size={22} /> : <Mic size={22} />}</button>
-        <button className={`control-btn ${isVideoEnabled ? 'active' : ''}`} onClick={toggleVideo}>{isVideoEnabled ? <Camera size={22} /> : <CameraOff size={22} />}</button>
-        {canScreenShare && (roomType === 'Conference' || peerList.some(p => p.isTalking)) && (
+      {/* ============================
+          Control Bar
+      ============================ */}
+      <div className="control-bar" style={{ position: 'relative' }}>
+
+        {/* Peer Selector Popover */}
+        {showPeerSelector && roomType === 'Lounge' && (
+          <PeerSelector
+            peerList={peerList}
+            activePeerId={activePeerId}
+            onSelect={handleSelectPeer}
+            onHangUp={handleHangUp}
+            onClose={() => setShowPeerSelector(false)}
+          />
+        )}
+
+        {/* Mic Button Group */}
+        <div className="mic-group">
+          <button
+            className={`control-btn ${!isMuted && activePeer ? 'active' : ''} ${!activePeer && roomType === 'Lounge' ? 'mic-idle' : ''}`}
+            onClick={handleMicClick}
+            title={activePeer ? (isMuted ? 'Unmute' : 'Mute') : 'Select who to call'}
+          >
+            {isMuted || !activePeer ? <MicOff size={22} /> : <Mic size={22} />}
+          </button>
+
+          {/* Chevron to open selector in Lounge */}
+          {roomType === 'Lounge' && (
+            <button
+              className={`chevron-btn ${showPeerSelector ? 'open' : ''}`}
+              onClick={() => setShowPeerSelector(prev => !prev)}
+              title="Select contact"
+            >
+              <ChevronUp size={14} />
+            </button>
+          )}
+        </div>
+
+        <button className={`control-btn ${isVideoEnabled ? 'active' : ''}`} onClick={toggleVideo}>
+          {isVideoEnabled ? <Camera size={22} /> : <CameraOff size={22} />}
+        </button>
+
+        {canScreenShare && (roomType === 'Conference' || activePeer) && (
           <button className={`control-btn ${localScreenStream ? 'active' : ''}`} onClick={localScreenStream ? stopScreenShare : startScreenShare}>
             <Monitor size={22} />
           </button>
         )}
-        <button className="control-btn" onClick={() => setJoined(false)} style={{ color: 'var(--danger)', marginLeft: '0.5rem' }}><LogOut size={22} /></button>
+
+        <button className="control-btn" onClick={() => setJoined(false)} style={{ color: 'var(--danger)', marginLeft: '0.5rem' }}>
+          <LogOut size={22} />
+        </button>
+
         <div style={{ width: '1px', height: '24px', background: 'var(--border)', margin: '0 8px' }} />
         {['Available', 'Busy', 'Break'].map(s => (
           <button key={s} onClick={() => setMyStatus(s)}

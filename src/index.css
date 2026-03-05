@@ -595,3 +595,245 @@ body {
     box-shadow: 0 0 0 8px rgba(34, 197, 94, 0);
   }
 }
+
+/* ===========================
+   Mic Group & Chevron
+=========================== */
+.mic-group {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.mic-group .control-btn {
+  border-radius: 0;
+  border: none;
+}
+
+.mic-group .control-btn.mic-idle {
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+.chevron-btn {
+  width: 22px;
+  height: 44px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s, transform 0.2s;
+  border-left: 1px solid var(--border);
+  padding: 0;
+}
+
+.chevron-btn:hover {
+  background: var(--bg-app);
+  color: var(--primary);
+}
+
+.chevron-btn.open {
+  color: var(--primary);
+  transform: rotate(180deg);
+}
+
+/* ===========================
+   Peer Selector Popover
+=========================== */
+.peer-selector {
+  position: absolute;
+  bottom: calc(100% + 14px);
+  left: 0;
+  min-width: 240px;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  box-shadow: var(--shadow-lg);
+  padding: 10px 8px;
+  z-index: 300;
+  animation: selector-in 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes selector-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Arrow pointing down */
+.peer-selector-arrow {
+  position: absolute;
+  bottom: -7px;
+  left: 24px;
+  width: 14px;
+  height: 14px;
+  background: white;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  transform: rotate(45deg);
+}
+
+.peer-selector-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 2px 8px 8px 8px;
+}
+
+.peer-selector-empty {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  padding: 12px 8px;
+  text-align: center;
+}
+
+.peer-selector-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  background: transparent;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+  text-align: left;
+  font-family: inherit;
+}
+
+.peer-selector-row:hover {
+  background: var(--bg-app);
+}
+
+.peer-selector-row.active {
+  background: var(--primary-subtle);
+}
+
+.selector-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--primary-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--primary);
+  position: relative;
+  flex-shrink: 0;
+}
+
+.online-dot-sm {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--success);
+  border: 2px solid white;
+}
+
+.selector-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.selector-name {
+  display: block;
+  font-size: 0.88rem;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.selector-status {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.selector-action-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 20px;
+  flex-shrink: 0;
+}
+
+.selector-action-pill.call {
+  background: var(--primary);
+  color: white;
+}
+
+.selector-action-pill.end {
+  background: #fee2e2;
+  color: var(--danger);
+}
+
+/* ===========================
+   Active Call Pill (top bar)
+=========================== */
+.active-call-pill {
+  position: fixed;
+  top: 1.4rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 6px 14px 6px 10px;
+  box-shadow: var(--shadow-md);
+  z-index: 100;
+  font-size: 0.82rem;
+  animation: banner-in 0.25s ease;
+}
+
+.call-dot-anim {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--success);
+  animation: ring-pulse 1.2s infinite;
+  flex-shrink: 0;
+}
+
+.end-call-mini {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #fee2e2;
+  color: var(--danger);
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.end-call-mini:hover {
+  background: var(--danger);
+  color: white;
+}
