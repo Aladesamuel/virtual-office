@@ -370,21 +370,22 @@ export default function Room() {
       {/* ============================
           Control Bar
       ============================ */}
-      <div className="control-bar" style={{ position: 'relative' }}>
+      <div className="control-bar">
 
-        {/* Peer Selector Popover */}
-        {showPeerSelector && roomType === 'Lounge' && (
-          <PeerSelector
-            peerList={peerList}
-            activePeerId={activePeerId}
-            onSelect={handleSelectPeer}
-            onHangUp={handleHangUp}
-            onClose={() => setShowPeerSelector(false)}
-          />
-        )}
+        {/* Mic Group — relative wrapper anchors the popover */}
+        <div className="mic-group" style={{ position: 'relative' }}>
 
-        {/* Mic Button Group */}
-        <div className="mic-group">
+          {/* Peer Selector Popover — anchored to mic-group */}
+          {showPeerSelector && roomType === 'Lounge' && (
+            <PeerSelector
+              peerList={peerList}
+              activePeerId={activePeerId}
+              onSelect={handleSelectPeer}
+              onHangUp={handleHangUp}
+              onClose={() => setShowPeerSelector(false)}
+            />
+          )}
+
           <button
             className={`control-btn ${!isMuted && activePeer ? 'active' : ''} ${!activePeer && roomType === 'Lounge' ? 'mic-idle' : ''}`}
             onClick={handleMicClick}
@@ -404,6 +405,7 @@ export default function Room() {
             </button>
           )}
         </div>
+
 
         <button className={`control-btn ${isVideoEnabled ? 'active' : ''}`} onClick={toggleVideo}>
           {isVideoEnabled ? <Camera size={22} /> : <CameraOff size={22} />}
