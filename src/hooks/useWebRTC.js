@@ -21,7 +21,14 @@ const pcConfig = {
  */
 export function useWebRTC(roomId, userName, isJoined) {
     const [peers, setPeers] = useState({});
-    const [myId] = useState(() => `u_${Math.random().toString(36).substr(2, 6)}`);
+    const [sessionStartTime] = useState(() => Date.now());
+    const [myId] = useState(() => {
+        const saved = localStorage.getItem('vo_myid');
+        if (saved) return saved;
+        const newId = `u_${Math.random().toString(36).substr(2, 6)}`;
+        localStorage.setItem('vo_myid', newId);
+        return newId;
+    });
     const [error, setError] = useState(null);
     const [myStatus, setMyStatus] = useState('Available');
     const [isMuted, setIsMuted] = useState(true);
@@ -196,7 +203,19 @@ export function useWebRTC(roomId, userName, isJoined) {
                     return;
                 }
                 const payload = JSON.parse(msgStr);
-                setPeers(prev => ({ ...prev, [remoteId]: { ...prev[remoteId], ...payload } }));
+
+                // If the session identity changed (refresh), clear the old connection
+                setPeers(prev => {
+                    const oldPeer = prev[remoteId];
+                    if (oldPeer && payload.sessionStartTime && oldPeer.sessionStartTime !== payload.sessionStartTime) {
+                        console.log(`[WebRTC] Peer ${remoteId} restarted session. Cleaning old state.`);
+                        if (peerConnections.current[remoteId]) {
+                            peerConnections.current[remoteId].close();
+                            delete peerConnections.current[remoteId];
+                        }
+                    }
+                    return { ...prev, [remoteId]: { ...prev[remoteId], ...payload, lastSeen: Date.now() } };
+                });
                 return;
             }
 
@@ -234,14 +253,49 @@ export function useWebRTC(roomId, userName, isJoined) {
         };
     }, [isJoined, roomId, myId, getPeerConnection]);
 
-    // 4. PRESENCE SYNC (Broadcast state changes)
+    // 4. HEARTBEAT & PRESENCE SYNC
     useEffect(() => {
-        if (mqttRef.current && mqttRef.current.connected) {
+        if (!mqttRef.current || !mqttRef.current.connected) return;
+
+        const broadcast = () => {
             mqttRef.current.publish(`vo/room/${roomId}/${myId}/pres`, JSON.stringify({
-                id: myId, name: userName, status: myStatus, isLocked: isLocked, isSharing: !!localScreenStream
+                id: myId, name: userName, status: myStatus, isLocked: isLocked,
+                isSharing: !!localScreenStream, lastSeen: Date.now(),
+                sessionStartTime
             }), { retain: true, qos: 1 });
-        }
+        };
+
+        broadcast(); // Immediate
+        const timer = setInterval(broadcast, 30000); // Every 30s
+        return () => clearInterval(timer);
     }, [myStatus, isLocked, !!localScreenStream, roomId, myId, userName]);
+
+    // 5. PEER PRUNING (Anti-Ghosting)
+    useEffect(() => {
+        const pruner = setInterval(() => {
+            const now = Date.now();
+            setPeers(prev => {
+                const updated = { ...prev };
+                let changed = false;
+                Object.keys(updated).forEach(id => {
+                    // Remove if no heartbeat for 70 seconds
+                    if (updated[id].lastSeen && (now - updated[id].lastSeen > 70000)) {
+                        console.log(`[Ghost] Pruning stale peer: ${id}`);
+                        delete updated[id];
+                        if (peerConnections.current[id]) {
+                            peerConnections.current[id].close();
+                            delete peerConnections.current[id];
+                        }
+                        const el = document.getElementById(`audio-${id}`);
+                        if (el) el.remove();
+                        changed = true;
+                    }
+                });
+                return changed ? updated : prev;
+            });
+        }, 10000); // Check every 10s
+        return () => clearInterval(pruner);
+    }, []);
 
     // -----------------------------------------------------------------
     // 4. API Functions (Collaboration Tools)
