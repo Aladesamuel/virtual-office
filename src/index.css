@@ -169,6 +169,44 @@ body {
   background: var(--oncall);
 }
 
+.talking-pulse {
+  position: relative;
+}
+
+.talking-pulse::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 18px;
+  border: 4px solid var(--primary);
+  opacity: 0.2;
+  animation: talking-glow 1.5s infinite ease-in-out;
+}
+
+.talking-pulse.active::after {
+  inset: -6px;
+  opacity: 0.4;
+  border-width: 6px;
+  animation-duration: 0.8s;
+}
+
+@keyframes talking-glow {
+  0% {
+    transform: scale(1);
+    opacity: 0.4;
+  }
+
+  50% {
+    transform: scale(1.05);
+    opacity: 0.1;
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 0.4;
+  }
+}
+
 /* Dialer dot variants (for selector popup) */
 .status-dot-Available {
   background: var(--success);
@@ -585,9 +623,44 @@ body {
   padding: 12px 20px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
   box-shadow: var(--shadow-lg);
   animation: banner-in 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.request-banner-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.request-banner-options {
+  display: flex;
+  gap: 8px;
+}
+
+.banner-toggle {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: 0.2s;
+}
+
+.banner-toggle:hover {
+  background: var(--bg-app);
+}
+
+.banner-toggle.active {
+  background: #fee2e2;
+  color: var(--danger);
+  border-color: #fecaca;
 }
 
 @keyframes banner-in {
@@ -970,13 +1043,37 @@ body {
 }
 
 @media (min-width: 769px) {
+  .dialer-fixed-overlay {
+    background: transparent;
+    backdrop-filter: none;
+  }
+
   .dialer-bottom-sheet {
-    width: 360px;
-    left: 50%;
+    width: 320px;
+    left: calc(50% - 220px);
     right: auto;
-    transform: translateX(-50%);
-    bottom: 2rem;
-    border-radius: 24px;
+    bottom: 5.5rem;
+    border-radius: 20px;
+    transform: none;
+    box-shadow: var(--shadow-lg);
+    animation: dialer-desktop-in 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    max-height: 480px;
+  }
+
+  @keyframes dialer-desktop-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .dialer-sheet-handle {
+    display: none;
   }
 }
 

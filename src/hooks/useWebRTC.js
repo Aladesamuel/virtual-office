@@ -142,29 +142,58 @@ export function useWebRTC(roomId, userName, isJoined, callbacks = {}) {
             const isVideo = event.track.kind === 'video';
             const label = event.track.label.toLowerCase();
             const isScreen = label.includes('screen') || label.includes('monitor') || label.includes('display');
-            console.log(`[WebRTC] Track from ${remoteId}: ${event.track.kind}, isScreen: ${isScreen}, Label: ${label}`);
 
-            if (isVideo) {
-                setPeers(prev => ({
-                    ...prev,
-                    [remoteId]: {
-                        ...prev[remoteId],
-                        [isScreen ? 'remoteScreenStream' : 'remoteVideoStream']: stream,
-                        isTalking: !isScreen ? true : prev[remoteId]?.isTalking
-                    }
-                }));
-                return;
-            }
+            console.log(`[WebRTC] Track from ${remoteId}: ${event.track.kind}, isScreen: ${isScreen}`);
 
-            let audioEl = document.getElementById(`audio-${remoteId}`);
-            if (!audioEl) {
-                audioEl = document.createElement('audio');
-                audioEl.id = `audio-${remoteId}`;
-                audioEl.autoplay = true;
-                document.body.appendChild(audioEl);
+            setPeers(prev => {
+                const peer = prev[remoteId] || {};
+                if (isVideo) {
+                    return {
+                        ...prev,
+                        [remoteId]: {
+                            ...peer,
+                            [isScreen ? 'remoteScreenStream' : 'remoteVideoStream']: stream
+                        }
+                    };
+                } else {
+                    return {
+                        ...prev,
+                        [remoteId]: {
+                            ...peer,
+                            remoteAudioStream: stream
+                        }
+                    };
+                }
+            });
+
+            // If it's audio, we can setup a volume analyzer here
+            if (!isVideo) {
+                try {
+                    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    const source = audioContext.createMediaStreamSource(stream);
+                    const analyzer = audioContext.createAnalyser();
+                    analyzer.fftSize = 256;
+                    source.connect(analyzer);
+
+                    const dataArray = new Uint8Array(analyzer.frequencyBinCount);
+                    const checkVolume = () => {
+                        if (!peerConnections.current[remoteId]) {
+                            audioContext.close();
+                            return;
+                        }
+                        analyzer.getByteFrequencyData(dataArray);
+                        const average = dataArray.reduce((p, c) => p + c, 0) / dataArray.length;
+                        const isTalking = average > 10; // Threshold for talking
+
+                        setPeers(prev => {
+                            if (!prev[remoteId] || prev[remoteId].isTalking === isTalking) return prev;
+                            return { ...prev, [remoteId]: { ...prev[remoteId], isTalking } };
+                        });
+                        setTimeout(checkVolume, 200);
+                    };
+                    checkVolume();
+                } catch (e) { console.error("[WebRTC] Audio Analysis Error:", e); }
             }
-            audioEl.srcObject = stream;
-            setPeers(prev => ({ ...prev, [remoteId]: { ...prev[remoteId], isTalking: true } }));
         };
 
         return pc;

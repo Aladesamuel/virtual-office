@@ -158,6 +158,45 @@ export default function Room() {
   });
 
   // Sound Hooks
+  const [isTalkingLocally, setIsTalkingLocally] = useState(false);
+
+  useEffect(() => {
+    if (!joined || !localVideoStream && !isMuted) return; // Only if joined and mic might be on
+
+    // Simple local VAD
+    let ctx, source, analyzer, dataArray;
+    let active = true;
+
+    const setupVAD = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        ctx = new (window.AudioContext || window.webkitAudioContext)();
+        source = ctx.createMediaStreamSource(stream);
+        analyzer = ctx.createAnalyser();
+        analyzer.fftSize = 256;
+        source.connect(analyzer);
+        dataArray = new Uint8Array(analyzer.frequencyBinCount);
+
+        const check = () => {
+          if (!active) return;
+          analyzer.getByteFrequencyData(dataArray);
+          const avg = dataArray.reduce((p, c) => p + c, 0) / dataArray.length;
+          const talking = avg > 10 && !isMuted;
+          if (talking !== isTalkingLocally) setIsTalkingLocally(talking);
+          setTimeout(check, 200);
+        };
+        check();
+      } catch (e) { }
+    };
+
+    if (!isMuted) setupVAD();
+
+    return () => {
+      active = false;
+      if (ctx) ctx.close();
+    };
+  }, [joined, isMuted]);
+
   useEffect(() => {
     if (dialingPeerId) sounds.playDialTone();
     else sounds.stopDialTone();
@@ -284,7 +323,14 @@ export default function Room() {
       {joinRequests.length > 0 && (
         <div className="request-banner">
           <div className="incoming-call-ring" />
-          <span className="request-banner-text"><strong>{joinRequests[0].peerName}</strong> is calling...</span>
+          <div className="request-banner-info">
+            <span className="request-banner-text"><strong>{joinRequests[0].peerName}</strong> is calling...</span>
+            <div className="request-banner-options">
+              <button className={`banner-toggle ${isMuted ? 'active' : ''}`} onClick={toggleMute} title={isMuted ? 'Mic is off' : 'Mic is on'}>
+                {isMuted ? <MicOff size={14} /> : <Mic size={14} />}
+              </button>
+            </div>
+          </div>
           <div className="request-banner-actions">
             <button onClick={() => { acceptJoinRequest(joinRequests[0].peerId); setActivePeerId(joinRequests[0].peerId); }} className="btn btn-primary">
               <PhoneCall size={14} /> Answer
@@ -293,6 +339,19 @@ export default function Room() {
           </div>
         </div>
       )}
+
+      {/* Hidden Audio Elements */}
+      <div style={{ display: 'none' }}>
+        {peerList.map(peer => (
+          peer.remoteAudioStream && (
+            <audio
+              key={`audio-${peer.id}`}
+              autoPlay
+              ref={el => { if (el) el.srcObject = peer.remoteAudioStream; }}
+            />
+          )
+        ))}
+      </div>
 
       {/* Active/Dialing Call Indicator */}
       {(activePeerId || dialingPeerId) && (
@@ -321,8 +380,8 @@ export default function Room() {
                 </div>
               ) : (
                 <div onClick={() => setShowStatusMenu(!showStatusMenu)} style={{ position: 'relative' }}>
-                  <div className={`peer-avatar ${activePeer && !isMuted ? 'talking-pulse' : ''}`} style={{ cursor: 'pointer' }}>
-                    <User size={30} color={activePeer && !isMuted ? 'var(--primary)' : 'var(--text-muted)'} />
+                  <div className={`peer-avatar ${(activePeerId || isTalkingLocally) && !isMuted ? (isTalkingLocally ? 'talking-pulse active' : 'talking-pulse') : ''}`} style={{ cursor: 'pointer' }}>
+                    <User size={30} color={isTalkingLocally ? 'var(--primary)' : 'var(--text-muted)'} />
                     <div className={`status-indicator status-${myStatus}`} />
                   </div>
                   {showStatusMenu && (
@@ -352,8 +411,8 @@ export default function Room() {
                     <video autoPlay playsInline ref={el => { if (el) el.srcObject = peer.remoteVideoStream; }} className="card-video" />
                   </div>
                 ) : (
-                  <div className={`peer-avatar ${peer.id === activePeerId ? 'talking-pulse' : ''}`}>
-                    <User size={30} color={peer.id === activePeerId ? 'var(--primary)' : 'var(--text-muted)'} />
+                  <div className={`peer-avatar ${peer.id === activePeerId || peer.isTalking ? 'talking-pulse' : ''}`}>
+                    <User size={30} color={peer.id === activePeerId || peer.isTalking ? 'var(--primary)' : 'var(--text-muted)'} />
                     <div className={`status-indicator status-${peer.status || 'Available'}`} />
                   </div>
                 )}
