@@ -217,9 +217,9 @@ export function useWebRTC(roomId, userName, isJoined) {
                         setJoinRequests(prev => prev.find(r => r.id === data.from) ? prev : [...prev, { id: data.from, name: data.name }]);
                         return;
                     }
-                    // Notify that someone is calling
-                    if (window.__incomingCallHandlers && window.__incomingCallHandlers[data.from]) {
-                        window.__incomingCallHandlers[data.from](data.from, data.name);
+                    // Trigger incoming call notification via window callback
+                    if (window.__handleIncomingCall) {
+                        window.__handleIncomingCall({ peerId: data.from, peerName: data.name });
                     }
                     await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
                     const answer = await pc.createAnswer();

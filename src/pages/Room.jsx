@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useWebRTC } from '../hooks/useWebRTC';
 import { ActiveCallModal } from '../components/ActiveCallModal';
+import { IncomingCallNotification } from '../components/IncomingCallNotification';
 import { ConnectionQuality } from '../components/ConnectionQuality';
 import { DoNotDisturb } from '../components/DoNotDisturb';
 import { CallHistory } from '../components/CallHistory';
@@ -18,7 +19,7 @@ export default function Room() {
   const [activePeerId, setActivePeerId] = useState(null);
   const [callDuration, setCallDuration] = useState(0);
   const [groupCallPeers, setGroupCallPeers] = useState([]);
-  const [incomingCallerId, setIncomingCallerId] = useState(null);
+  const [incomingCall, setIncomingCall] = useState(null);
   const [dndEnabled, setDndEnabled] = useState(() => localStorage.getItem('vo_dnd') === 'true');
   const [showCallHistory, setShowCallHistory] = useState(false);
   const [peerConnections, setPeerConnections] = useState({});
@@ -33,6 +34,19 @@ export default function Room() {
     localStream
   } = useWebRTC(roomId, name, joined);
 
+  // Register incoming call handler
+  useEffect(() => {
+    window.__handleIncomingCall = (callData) => {
+      if (!dndEnabled && !activePeerId && !incomingCall) {
+        setIncomingCall(callData);
+      }
+    };
+
+    return () => {
+      delete window.__handleIncomingCall;
+    };
+  }, [dndEnabled, activePeerId, incomingCall]);
+
   // Auto-notification for people entering
   const prevPeers = useRef({});
   useEffect(() => {
@@ -46,24 +60,7 @@ export default function Room() {
     prevPeers.current = peers;
   }, [peers]);
 
-  // Register incoming call handler with the WebRTC hook
-  useEffect(() => {
-    if (!window.__incomingCallHandlers) {
-      window.__incomingCallHandlers = {};
-    }
-    
-    window.__incomingCallHandlers[myId] = (fromId, fromName) => {
-      if (!dndEnabled && !activePeerId && !incomingCallerId) {
-        setIncomingCallerId(fromId);
-      }
-    };
 
-    return () => {
-      if (window.__incomingCallHandlers && window.__incomingCallHandlers[myId]) {
-        delete window.__incomingCallHandlers[myId];
-      }
-    };
-  }, [myId, dndEnabled, activePeerId, incomingCallerId]);
 
   const addNotification = (message) => {
     const id = Math.random().toString(36).substr(2, 9);
@@ -89,7 +86,7 @@ export default function Room() {
 
   // Call duration timer
   useEffect(() => {
-    const currentCallPeerId = activePeerId || incomingCallerId;
+    const currentCallPeerId = activePeerId || incomingCall?.peerId;
     
     if (!currentCallPeerId) {
       if (callDuration > 0) {
@@ -119,7 +116,7 @@ export default function Room() {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [activePeerId, incomingCallerId, peers]);
+  }, [activePeerId, incomingCall, peers]);
 
   // Update timer display
   useEffect(() => {
@@ -256,18 +253,33 @@ export default function Room() {
         </div>
       )}
 
+      {/* Incoming Call Notification Banner */}
+      {incomingCall && !activePeerId && (
+        <IncomingCallNotification
+          callerName={incomingCall.peerName}
+          onAccept={() => {
+            setActivePeerId(incomingCall.peerId);
+            setIncomingCall(null);
+          }}
+          onDecline={() => {
+            hangUp(incomingCall.peerId);
+            setIncomingCall(null);
+          }}
+        />
+      )}
+
       {/* Active Call Modal */}
-      {(activePeerId || incomingCallerId) && peers[activePeerId || incomingCallerId] && (
+      {(activePeerId || incomingCall) && peers[activePeerId || incomingCall?.peerId] && (
         <ActiveCallModal
-          peerName={peers[activePeerId || incomingCallerId].name}
+          peerName={peers[activePeerId || incomingCall?.peerId].name}
           onHangUp={() => {
-            const callPeerId = activePeerId || incomingCallerId;
+            const callPeerId = activePeerId || incomingCall?.peerId;
             hangUp(callPeerId);
             setActivePeerId(null);
-            setIncomingCallerId(null);
+            setIncomingCall(null);
             setGroupCallPeers([]);
           }}
-          availablePeers={Object.values(peers).filter(p => p.id !== (activePeerId || incomingCallerId) && !groupCallPeers.includes(p.id))}
+          availablePeers={Object.values(peers).filter(p => p.id !== (activePeerId || incomingCall?.peerId) && !groupCallPeers.includes(p.id))}
           onAddPeer={(peerId) => {
             if (!groupCallPeers.includes(peerId)) {
               callPeer(peerId);

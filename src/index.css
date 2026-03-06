@@ -526,6 +526,145 @@ button:focus-visible {
   border: 2px solid var(--primary);
 }
 
+/* Incoming Call Notification */
+.incoming-call-notification {
+  position: fixed;
+  top: 1.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 90%;
+  max-width: 450px;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--oncall) 100%);
+  backdrop-filter: blur(20px);
+  color: white;
+  padding: 1.25rem;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  z-index: 150;
+  box-shadow: 0 20px 40px rgba(79, 70, 229, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  animation: slideDown 0.3s ease-out;
+}
+
+.call-notification-content {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex: 1;
+}
+
+.notification-icon {
+  width: 48px;
+  height: 48px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  animation: callPulse 2s infinite;
+}
+
+.notification-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.caller-name {
+  font-weight: 800;
+  font-size: 1rem;
+}
+
+.call-status {
+  font-size: 0.85rem;
+  opacity: 0.9;
+}
+
+.notification-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-shrink: 0;
+}
+
+.notification-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 700;
+}
+
+.notification-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: scale(1.05);
+}
+
+.notification-btn.accept {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: white;
+}
+
+.notification-btn.accept:hover {
+  background: white;
+  color: var(--primary);
+}
+
+.notification-btn.decline:hover {
+  background: rgba(255, 74, 74, 0.3);
+  border-color: #ff4a4a;
+}
+
+@media (max-width: 640px) {
+  .incoming-call-notification {
+    top: 1rem;
+    width: 95%;
+    padding: 1rem;
+    gap: 1rem;
+  }
+
+  .notification-icon {
+    width: 40px;
+    height: 40px;
+  }
+
+  .notification-btn {
+    width: 40px;
+    height: 40px;
+  }
+
+  .caller-name {
+    font-size: 0.95rem;
+  }
+
+  .call-status {
+    font-size: 0.8rem;
+  }
+}
+
+@keyframes slideDown {
+  from {
+    transform: translateX(-50%) translateY(-20px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+  }
+}
+
 /* Knock Notification */
 .knock-notification {
   position: fixed;
