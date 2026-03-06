@@ -46,16 +46,24 @@ export default function Room() {
     prevPeers.current = peers;
   }, [peers]);
 
-  // Detect when peer initiates a call to this user
+  // Register incoming call handler with the WebRTC hook
   useEffect(() => {
-    if (!activePeerId && !incomingCallerId) {
-      // Check if any peer has initiated a call (they will have an ontrack event)
-      const callingPeer = Object.values(peers).find(p => p.remoteStream && p.status === 'OnCall');
-      if (callingPeer) {
-        setIncomingCallerId(callingPeer.id);
-      }
+    if (!window.__incomingCallHandlers) {
+      window.__incomingCallHandlers = {};
     }
-  }, [peers, activePeerId, incomingCallerId]);
+    
+    window.__incomingCallHandlers[myId] = (fromId, fromName) => {
+      if (!dndEnabled && !activePeerId && !incomingCallerId) {
+        setIncomingCallerId(fromId);
+      }
+    };
+
+    return () => {
+      if (window.__incomingCallHandlers && window.__incomingCallHandlers[myId]) {
+        delete window.__incomingCallHandlers[myId];
+      }
+    };
+  }, [myId, dndEnabled, activePeerId, incomingCallerId]);
 
   const addNotification = (message) => {
     const id = Math.random().toString(36).substr(2, 9);
