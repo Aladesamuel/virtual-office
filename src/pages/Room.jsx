@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useWebRTC } from '../hooks/useWebRTC';
 import { ActiveCallModal } from '../components/ActiveCallModal';
+import { IncomingCallNotification } from '../components/IncomingCallNotification';
 import { ConnectionQuality } from '../components/ConnectionQuality';
 import { DoNotDisturb } from '../components/DoNotDisturb';
 import { CallHistory } from '../components/CallHistory';
@@ -18,6 +19,7 @@ export default function Room() {
   const [activePeerId, setActivePeerId] = useState(null);
   const [callDuration, setCallDuration] = useState(0);
   const [groupCallPeers, setGroupCallPeers] = useState([]);
+  const [incomingCall, setIncomingCall] = useState(null);
   const [dndEnabled, setDndEnabled] = useState(() => localStorage.getItem('vo_dnd') === 'true');
   const [showCallHistory, setShowCallHistory] = useState(false);
   const [peerConnections, setPeerConnections] = useState({});
@@ -32,6 +34,39 @@ export default function Room() {
     localStream
   } = useWebRTC(roomId, name, joined);
 
+  // Register incoming call handler with deduplication
+  useEffect(() => {
+    window.__handleIncomingCall = (callData) => {
+      // Only show notification if not already in a call and not already showing this caller
+      if (!dndEnabled && !activePeerId && (!incomingCall || incomingCall.peerId !== callData.peerId)) {
+        setIncomingCall(callData);
+        // Add browser notification if available
+        if ('Notification' in window && Notification.permission === 'granted') {
+          try {
+            new Notification(`${callData.peerName} is calling`, {
+              body: 'Click to answer',
+              tag: `incoming-call-${callData.peerId}`,
+              requireInteraction: true
+            });
+          } catch (err) {
+            console.error('Notification error:', err);
+          }
+        }
+      }
+    };
+
+    return () => {
+      delete window.__handleIncomingCall;
+    };
+  }, [dndEnabled, activePeerId, incomingCall]);
+
+  // Request notification permission on mount
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, []);
+
   // Auto-notification for people entering
   const prevPeers = useRef({});
   useEffect(() => {
@@ -44,6 +79,8 @@ export default function Room() {
     });
     prevPeers.current = peers;
   }, [peers]);
+
+
 
   const addNotification = (message) => {
     const id = Math.random().toString(36).substr(2, 9);
@@ -69,10 +106,12 @@ export default function Room() {
 
   // Call duration timer
   useEffect(() => {
-    if (!activePeerId) {
+    const currentCallPeerId = activePeerId || incomingCall?.peerId;
+    
+    if (!currentCallPeerId) {
       if (callDuration > 0) {
         // Save call to history
-        const peerName = peers[activePeerId]?.name || 'Unknown';
+        const peerName = peers[currentCallPeerId]?.name || 'Unknown';
         const stored = JSON.parse(localStorage.getItem('vo_call_history') || '[]');
         stored.unshift({
           id: `${Date.now()}-${Math.random()}`,
@@ -97,7 +136,7 @@ export default function Room() {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [activePeerId, peers]);
+  }, [activePeerId, incomingCall, peers]);
 
   // Update timer display
   useEffect(() => {
@@ -228,22 +267,39 @@ export default function Room() {
             </div>
           </div>
           <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
-            <button onClick={() => acceptRequest(joinRequests[0].id)} style={{ background: 'white', color: 'var(--text-main)', padding: '8px 12px', borderRadius: '10px', border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>Accept</button>
+            <button onClick={() => { acceptRequest(joinRequests[0].id); setIncomingCallerId(joinRequests[0].id); }} style={{ background: 'white', color: 'var(--text-main)', padding: '8px 12px', borderRadius: '10px', border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>Accept</button>
             <button onClick={() => setJoinRequests(prev => prev.slice(1))} style={{ background: 'rgba(255,255,255,0.1)', color: 'white', padding: '8px 10px', borderRadius: '10px', border: 'none', fontWeight: 600, cursor: 'pointer', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>Ignore</button>
           </div>
         </div>
       )}
 
+      {/* Incoming Call Notification Banner */}
+      {incomingCall && !activePeerId && (
+        <IncomingCallNotification
+          callerName={incomingCall.peerName}
+          onAccept={() => {
+            setActivePeerId(incomingCall.peerId);
+            setIncomingCall(null);
+          }}
+          onDecline={() => {
+            hangUp(incomingCall.peerId);
+            setIncomingCall(null);
+          }}
+        />
+      )}
+
       {/* Active Call Modal */}
-      {activePeerId && peers[activePeerId] && (
+      {(activePeerId || incomingCall) && peers[activePeerId || incomingCall?.peerId] && (
         <ActiveCallModal
-          peerName={peers[activePeerId].name}
+          peerName={peers[activePeerId || incomingCall?.peerId].name}
           onHangUp={() => {
-            hangUp(activePeerId);
+            const callPeerId = activePeerId || incomingCall?.peerId;
+            hangUp(callPeerId);
             setActivePeerId(null);
+            setIncomingCall(null);
             setGroupCallPeers([]);
           }}
-          availablePeers={Object.values(peers).filter(p => p.id !== activePeerId && !groupCallPeers.includes(p.id))}
+          availablePeers={Object.values(peers).filter(p => p.id !== (activePeerId || incomingCall?.peerId) && !groupCallPeers.includes(p.id))}
           onAddPeer={(peerId) => {
             if (!groupCallPeers.includes(peerId)) {
               callPeer(peerId);

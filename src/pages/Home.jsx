@@ -25,7 +25,7 @@ export default function Home() {
       role="main"
       style={{
         height: '100vh',
-        background: 'radial-gradient(circle at 10% 20%, rgba(79, 70, 229, 0.05) 0%, rgba(255,255,255,1) 90%)',
+        background: 'linear-gradient(135deg, rgba(255,255,255,1) 0%, rgba(236,253,245,0.5) 100%)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',

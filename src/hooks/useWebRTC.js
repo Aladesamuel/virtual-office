@@ -33,7 +33,15 @@ export function useWebRTC(roomId, userName, isJoined) {
         if (!isJoined) return;
 
         navigator.mediaDevices.getUserMedia({
-            audio: { echoCancellation: true, noiseSuppression: true }
+            audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true,
+                typingNoiseDetection: true,
+                experimentalEchoCancellation: true,
+                experimentalNoiseSuppression: true,
+                experimentalAutoGainControl: true
+            }
         })
             .then(stream => {
                 localStreamRef.current = stream;
@@ -216,6 +224,10 @@ export function useWebRTC(roomId, userName, isJoined) {
                     if (isLocked) {
                         setJoinRequests(prev => prev.find(r => r.id === data.from) ? prev : [...prev, { id: data.from, name: data.name }]);
                         return;
+                    }
+                    // Trigger incoming call notification via window callback
+                    if (window.__handleIncomingCall) {
+                        window.__handleIncomingCall({ peerId: data.from, peerName: data.name });
                     }
                     await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
                     const answer = await pc.createAnswer();

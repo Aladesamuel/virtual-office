@@ -1,19 +1,21 @@
 :root {
-  --primary: #4f46e5;
-  --primary-subtle: #eef2ff;
-  --bg-app: #f8fafc;
+  --primary: #10b981;
+  --primary-subtle: #ecfdf5;
+  --primary-light: #d1fae5;
+  --bg-app: #f9fafb;
   --bg-card: #ffffff;
-  --text-main: #0f172a;
-  --text-muted: #64748b;
-  --border: #e2e8f0;
-  --success: #22c55e;
+  --bg-hover: #f3f4f6;
+  --text-main: #111827;
+  --text-muted: #6b7280;
+  --border: #e5e7eb;
+  --success: #10b981;
   --warning: #f59e0b;
   --danger: #ef4444;
-  --oncall: #8b5cf6;
-  --font-main: 'Plus Jakarta Sans', 'Inter', -apple-system, sans-serif;
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+  --oncall: #06b6d4;
+  --font-main: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.03);
+  --shadow-md: 0 4px 12px 0 rgb(0 0 0 / 0.08);
+  --shadow-lg: 0 12px 24px 0 rgb(0 0 0 / 0.1);
 }
 
 * {
@@ -29,6 +31,56 @@ body {
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.app-container {
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Button Styles */
+.btn {
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: white;
+  border-radius: 12px;
+  box-shadow: 0 8px 16px rgba(16, 185, 129, 0.2);
+}
+
+.btn-primary:hover {
+  background: #059669;
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px rgba(16, 185, 129, 0.3);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+.btn-secondary {
+  background: var(--bg-card);
+  color: var(--text-main);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.btn-secondary:hover {
+  background: var(--bg-hover);
+  border-color: var(--primary);
 }
 
 /* Focus visible for keyboard navigation */
@@ -111,9 +163,9 @@ button:focus-visible {
 /* Main Layout */
 .office-floor {
   flex: 1;
-  padding: 5.5rem 0.75rem 7.5rem 0.75rem;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  padding: 5.5rem 1rem 7.5rem 1rem;
+  display: flex;
+  flex-direction: column;
   gap: 0.75rem;
   overflow-y: auto;
   overflow-x: hidden;
@@ -125,21 +177,28 @@ button:focus-visible {
   -webkit-overflow-scrolling: touch;
 }
 
-/* Small phones 320px-375px */
-@media (min-width: 375px) {
-  .office-floor {
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-    padding: 5.5rem 0.9rem 7.5rem 0.9rem;
-    gap: 0.9rem;
-  }
+/* Mobile list layout 320px-639px - vertical flex */
+.office-floor {
+  align-items: stretch;
 }
 
-/* Tablets 640px+ */
+.office-floor .member-tile {
+  width: 100%;
+  padding: 0.6rem 0.5rem;
+}
+
+/* Tablets and up 640px+ - Grid layout */
 @media (min-width: 640px) {
   .office-floor {
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
     padding: 6rem 1.25rem 8rem 1.25rem;
-    gap: 1.25rem;
+    gap: 1rem;
+    align-items: start;
+  }
+
+  .office-floor .member-tile {
+    width: auto;
   }
 }
 
@@ -165,19 +224,39 @@ button:focus-visible {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 14px;
-  padding: 0.9rem;
+  padding: 0.75rem 0.65rem;
   display: flex;
   flex-direction: column;
   align-items: center;
   position: relative;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.25s ease;
   box-shadow: var(--shadow-sm);
   width: 100%;
   touch-action: manipulation;
 }
 
 .member-tile:hover {
-  transform: translateY(-3px);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--primary);
+  background: var(--bg-hover);
+}
+
+@media (hover: none) {
+  .member-tile:active {
+    background: var(--primary-subtle);
+    border-color: var(--primary);
+  }
+}
+
+@media (min-width: 640px) {
+  .member-tile {
+    padding: 0.7rem 0.6rem;
+  }
+}
+
+.member-tile:hover {
+  transform: translateY(-2px);
   box-shadow: var(--shadow-md);
   border-color: var(--primary);
 }
@@ -190,25 +269,30 @@ button:focus-visible {
 }
 
 .avatar-container {
-  width: clamp(44px, 10vw, 56px);
-  height: clamp(44px, 10vw, 56px);
+  width: clamp(44px, 11vw, 52px);
+  height: clamp(44px, 11vw, 52px);
   border-radius: 50%;
-  background: var(--primary-subtle);
+  background: linear-gradient(135deg, var(--primary), var(--oncall));
   display: flex;
   align-items: center;
   justify-content: center;
   margin-bottom: 0.6rem;
   position: relative;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.15);
+  color: white;
+  font-weight: 700;
+  font-size: 1.25rem;
 }
 
 .status-dot {
   position: absolute;
-  bottom: 0;
-  right: 0;
-  width: 14px;
-  height: 14px;
+  bottom: -2px;
+  right: -2px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
-  border: 2.5px solid white;
+  border: 2px solid white;
 }
 
 .status-Available {
@@ -229,42 +313,46 @@ button:focus-visible {
 
 .member-name {
   font-weight: 700;
-  font-size: 0.95rem;
-  margin-bottom: 0.2rem;
+  font-size: 0.9rem;
+  margin-bottom: 0.15rem;
   text-align: center;
-  line-height: 1.2;
+  line-height: 1.1;
+  word-break: break-word;
 }
 
 .member-status-text {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   color: var(--text-muted);
   text-align: center;
+  margin-bottom: 0.4rem;
 }
 
 /* Call Button */
 .call-btn {
-  margin-top: 0.6rem;
+  margin-top: 0.5rem;
   width: 100%;
   padding: 0.55rem 0.5rem;
-  border-radius: 9px;
-  border: none;
-  background: var(--primary-subtle);
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
   color: var(--primary);
-  font-weight: 700;
+  font-weight: 600;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  transition: all 0.2s;
-  font-size: clamp(0.75rem, 2vw, 0.85rem);
-  min-height: 32px;
+  gap: 6px;
+  transition: all 0.2s ease;
+  font-size: clamp(0.72rem, 1.8vw, 0.85rem);
+  min-height: 30px;
   -webkit-tap-highlight-color: transparent;
 }
 
 .call-btn:hover {
   background: var(--primary);
   color: white;
+  border-color: var(--primary);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
 }
 
 .call-btn:active {
@@ -273,12 +361,14 @@ button:focus-visible {
 
 .call-btn.danger {
   color: var(--danger);
-  background: #fee2e2;
+  border-color: #fecaca;
 }
 
 .call-btn.danger:hover {
   background: var(--danger);
   color: white;
+  border-color: var(--danger);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.25);
 }
 
 @media (max-width: 375px) {
@@ -295,15 +385,15 @@ button:focus-visible {
   bottom: 1rem;
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(20px);
+  background: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(15px);
   border: 1px solid var(--border);
-  padding: 0.55rem 0.9rem;
+  padding: 0.65rem 1rem;
   display: flex;
   align-items: center;
-  gap: clamp(0.5rem, 2vw, 1rem);
-  border-radius: 16px;
-  box-shadow: var(--shadow-lg), 0 0 0 1px rgba(255, 255, 255, 0.5) inset;
+  gap: clamp(0.6rem, 2vw, 1.1rem);
+  border-radius: 18px;
+  box-shadow: var(--shadow-lg);
   z-index: 100;
   width: auto;
   max-width: calc(100vw - 1rem);
@@ -339,15 +429,15 @@ button:focus-visible {
 }
 
 .status-pill {
-  padding: 0.35rem 0.7rem;
+  padding: 0.4rem 0.85rem;
   border-radius: 99px;
   border: 1px solid var(--border);
-  background: white;
+  background: var(--bg-card);
   color: var(--text-muted);
-  font-weight: 700;
+  font-weight: 600;
   cursor: pointer;
-  font-size: 0.75rem;
-  transition: all 0.2s;
+  font-size: 0.8rem;
+  transition: all 0.2s ease;
 }
 
 .status-pill:hover {
@@ -357,9 +447,10 @@ button:focus-visible {
 }
 
 .status-pill.active {
-  background: var(--primary-subtle);
-  color: var(--primary);
+  background: var(--primary);
+  color: white;
   border-color: var(--primary);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
 }
 
 .icon-btn {
@@ -367,12 +458,12 @@ button:focus-visible {
   height: clamp(40px, 10vw, 44px);
   border-radius: 50%;
   border: 1px solid var(--border);
-  background: white;
+  background: var(--bg-card);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.2s ease;
   color: var(--text-muted);
   flex-shrink: 0;
   -webkit-tap-highlight-color: transparent;
@@ -380,13 +471,19 @@ button:focus-visible {
 }
 
 .icon-btn:hover {
-  background: var(--primary-subtle);
+  background: var(--bg-hover);
   color: var(--primary);
   border-color: var(--primary);
 }
 
 .icon-btn:active {
   transform: scale(0.95);
+}
+
+.icon-btn.active {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
 }
 
 .icon-btn.active {
@@ -463,31 +560,34 @@ button:focus-visible {
   top: 0;
   left: 0;
   right: 0;
-  padding: 1.25rem 2rem;
+  padding: 1rem 2rem;
   z-index: 50;
   display: flex;
   justify-content: space-between;
   align-items: center;
   pointer-events: none;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
 }
 
 .room-header-title {
-  font-size: 1rem;
-  font-weight: 800;
-  color: var(--primary);
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-main);
   letter-spacing: -0.02em;
   pointer-events: auto;
 }
 
 .room-header-status {
-  font-size: 0.75rem;
-  font-weight: 700;
+  font-size: 0.8rem;
+  font-weight: 600;
   color: var(--success);
-  background: white;
-  padding: 4px 12px;
+  background: #ecfdf5;
+  padding: 6px 14px;
   border-radius: 99px;
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-sm);
+  border: 1px solid #d1fae5;
+  box-shadow: none;
   pointer-events: auto;
 }
 
@@ -509,21 +609,160 @@ button:focus-visible {
 /* Talking Pulse */
 @keyframes pulse {
   0% {
-    box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.4);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
   }
 
   70% {
-    box-shadow: 0 0 0 10px rgba(79, 70, 229, 0);
+    box-shadow: 0 0 0 10px rgba(16, 185, 129, 0);
   }
 
   100% {
-    box-shadow: 0 0 0 0 rgba(79, 70, 229, 0);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
   }
 }
 
 .talking-pulse {
   animation: pulse 2s infinite;
   border: 2px solid var(--primary);
+}
+
+/* Incoming Call Notification */
+.incoming-call-notification {
+  position: fixed;
+  top: 1.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 90%;
+  max-width: 480px;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--oncall) 100%);
+  backdrop-filter: blur(15px);
+  color: white;
+  padding: 1.25rem 1.5rem;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  z-index: 150;
+  box-shadow: 0 16px 32px rgba(16, 185, 129, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  animation: slideDown 0.3s ease-out;
+}
+
+.call-notification-content {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex: 1;
+}
+
+.notification-icon {
+  width: 48px;
+  height: 48px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  animation: callPulse 2s infinite;
+}
+
+.notification-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.caller-name {
+  font-weight: 800;
+  font-size: 1rem;
+}
+
+.call-status {
+  font-size: 0.85rem;
+  opacity: 0.9;
+}
+
+.notification-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-shrink: 0;
+}
+
+.notification-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 700;
+}
+
+.notification-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: scale(1.05);
+}
+
+.notification-btn.accept {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: white;
+}
+
+.notification-btn.accept:hover {
+  background: white;
+  color: var(--primary);
+}
+
+.notification-btn.decline:hover {
+  background: rgba(255, 74, 74, 0.3);
+  border-color: #ff4a4a;
+}
+
+@media (max-width: 640px) {
+  .incoming-call-notification {
+    top: 1rem;
+    width: 95%;
+    padding: 1rem;
+    gap: 1rem;
+  }
+
+  .notification-icon {
+    width: 40px;
+    height: 40px;
+  }
+
+  .notification-btn {
+    width: 40px;
+    height: 40px;
+  }
+
+  .caller-name {
+    font-size: 0.95rem;
+  }
+
+  .call-status {
+    font-size: 0.8rem;
+  }
+}
+
+@keyframes slideDown {
+  from {
+    transform: translateX(-50%) translateY(-20px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+  }
 }
 
 /* Knock Notification */
@@ -633,11 +872,11 @@ button:focus-visible {
 
 .active-call-modal {
   background: white;
-  border-radius: 24px;
-  padding: 2.5rem 2rem;
+  border-radius: 20px;
+  padding: 2rem 1.75rem;
   width: 90%;
-  max-width: 420px;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  max-width: 400px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -650,22 +889,22 @@ button:focus-visible {
 }
 
 .call-modal-header h2 {
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   color: var(--text-muted);
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
 }
 
 .call-avatar-large {
-  width: 100px;
-  height: 100px;
+  width: 96px;
+  height: 96px;
   background: linear-gradient(135deg, var(--primary), var(--oncall));
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 10px 30px rgba(79, 70, 229, 0.3);
+  box-shadow: 0 12px 32px rgba(16, 185, 129, 0.18);
   animation: callPulse 2s infinite;
 }
 
@@ -707,28 +946,28 @@ button:focus-visible {
 }
 
 .hang-up-btn {
-  margin-top: 1rem;
+  margin-top: 0.75rem;
   width: 100%;
-  padding: 1rem;
+  padding: 0.95rem 1.25rem;
   background: var(--danger);
   color: white;
   border: none;
-  border-radius: 14px;
-  font-weight: 800;
-  font-size: 1rem;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 0.95rem;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
-  transition: all 0.2s;
-  box-shadow: 0 10px 20px rgba(239, 68, 68, 0.2);
+  gap: 10px;
+  transition: all 0.2s ease;
+  box-shadow: 0 8px 16px rgba(239, 68, 68, 0.15);
 }
 
 .hang-up-btn:hover {
   background: #dc2626;
   transform: translateY(-2px);
-  box-shadow: 0 15px 30px rgba(239, 68, 68, 0.3);
+  box-shadow: 0 12px 24px rgba(239, 68, 68, 0.25);
 }
 
 @media (max-width: 640px) {
