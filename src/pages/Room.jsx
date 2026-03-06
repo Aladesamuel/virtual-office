@@ -1,29 +1,44 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
   User, Mic, MicOff, Phone, LogOut,
-  Lock, Unlock, Hand, Bell, UserRound, Clock
+  Lock, Unlock, Hand, Bell, UserRound, Clock, Monitor
 } from 'lucide-react';
 import { useWebRTC } from '../hooks/useWebRTC';
 import { ActiveCallModal } from '../components/ActiveCallModal';
-import { IncomingCallNotification } from '../components/IncomingCallNotification';
+import { PublicJoinFlow } from '../components/PublicJoinFlow';
 import { ConnectionQuality } from '../components/ConnectionQuality';
 import { DoNotDisturb } from '../components/DoNotDisturb';
 import { CallHistory } from '../components/CallHistory';
 
-export default function Room() {
-  const { roomId } = useParams();
+export default function Room({ isPublicJoin = false, isAdmin = false }) {
+  const { roomId, officeId } = useParams();
+  const navigate = useNavigate();
+  const actualRoomId = roomId || officeId;
+  const [showPublicJoin, setShowPublicJoin] = useState(isPublicJoin);
+  const [officeData, setOfficeData] = useState(null);
   const [joined, setJoined] = useState(false);
   const [name, setName] = useState(() => localStorage.getItem('vo_username') || '');
   const [notifications, setNotifications] = useState([]);
   const [activePeerId, setActivePeerId] = useState(null);
   const [callDuration, setCallDuration] = useState(0);
   const [groupCallPeers, setGroupCallPeers] = useState([]);
-  const [incomingCall, setIncomingCall] = useState(null);
   const [dndEnabled, setDndEnabled] = useState(() => localStorage.getItem('vo_dnd') === 'true');
   const [showCallHistory, setShowCallHistory] = useState(false);
   const [peerConnections, setPeerConnections] = useState({});
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const screenStreamRef = useRef(null);
   const callStartTime = useRef(null);
+
+  // Load office data when on public or admin routes
+  useEffect(() => {
+    if (isPublicJoin || isAdmin) {
+      const data = localStorage.getItem(`office_${officeId}`);
+      if (data) {
+        setOfficeData(JSON.parse(data));
+      }
+    }
+  }, [officeId, isPublicJoin, isAdmin]);
 
   const {
     peers, myId, myStatus, setMyStatus,
@@ -32,40 +47,62 @@ export default function Room() {
     joinRequests, acceptRequest,
     callPeer, knockPeer, hangUp,
     localStream
-  } = useWebRTC(roomId, name, joined);
+  } = useWebRTC(actualRoomId, name, joined);
 
-  // Register incoming call handler with deduplication
-  useEffect(() => {
-    window.__handleIncomingCall = (callData) => {
-      // Only show notification if not already in a call and not already showing this caller
-      if (!dndEnabled && !activePeerId && (!incomingCall || incomingCall.peerId !== callData.peerId)) {
-        setIncomingCall(callData);
-        // Add browser notification if available
-        if ('Notification' in window && Notification.permission === 'granted') {
-          try {
-            new Notification(`${callData.peerName} is calling`, {
-              body: 'Click to answer',
-              tag: `incoming-call-${callData.peerId}`,
-              requireInteraction: true
-            });
-          } catch (err) {
-            console.error('Notification error:', err);
-          }
+  // Handle public join completion
+  const handlePublicJoinComplete = (userData) => {
+    setName(userData.name);
+    localStorage.setItem('vo_username', userData.name);
+    localStorage.setItem('vo_user_avatar', userData.avatar);
+    setShowPublicJoin(false);
+    setJoined(true);
+  };
+
+  // If showing public join flow, render that instead
+  if (showPublicJoin && officeData) {
+    return (
+      <PublicJoinFlow
+        onJoin={handlePublicJoinComplete}
+        officePassword={officeData.password}
+        officeRules={officeData.rules}
+      />
+    );
+  }
+
+  // Screen share handler
+  const handleScreenShare = async () => {
+    try {
+      if (!isScreenSharing) {
+        // Start screen share
+        const screenStream = await navigator.mediaDevices.getDisplayMedia({
+          video: { cursor: 'always' },
+          audio: false
+        });
+        screenStreamRef.current = screenStream;
+        setIsScreenSharing(true);
+        addNotification('Screen sharing started');
+
+        // Handle screen share stop
+        screenStream.getVideoTracks()[0].onended = () => {
+          handleScreenShare();
+        };
+      } else {
+        // Stop screen share
+        if (screenStreamRef.current) {
+          screenStreamRef.current.getTracks().forEach(track => track.stop());
+          screenStreamRef.current = null;
         }
+        setIsScreenSharing(false);
+        addNotification('Screen sharing stopped');
       }
-    };
-
-    return () => {
-      delete window.__handleIncomingCall;
-    };
-  }, [dndEnabled, activePeerId, incomingCall]);
-
-  // Request notification permission on mount
-  useEffect(() => {
-    if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission();
+    } catch (err) {
+      if (err.name !== 'NotAllowedError') {
+        console.error('Screen share error:', err);
+        addNotification('Could not start screen share');
+      }
     }
-  }, []);
+  };
+
 
   // Auto-notification for people entering
   const prevPeers = useRef({});
@@ -267,39 +304,22 @@ export default function Room() {
             </div>
           </div>
           <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
-            <button onClick={() => { acceptRequest(joinRequests[0].id); setIncomingCallerId(joinRequests[0].id); }} style={{ background: 'white', color: 'var(--text-main)', padding: '8px 12px', borderRadius: '10px', border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>Accept</button>
+            <button onClick={() => acceptRequest(joinRequests[0].id)} style={{ background: 'white', color: 'var(--text-main)', padding: '8px 12px', borderRadius: '10px', border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>Accept</button>
             <button onClick={() => setJoinRequests(prev => prev.slice(1))} style={{ background: 'rgba(255,255,255,0.1)', color: 'white', padding: '8px 10px', borderRadius: '10px', border: 'none', fontWeight: 600, cursor: 'pointer', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>Ignore</button>
           </div>
         </div>
       )}
 
-      {/* Incoming Call Notification Banner */}
-      {incomingCall && !activePeerId && (
-        <IncomingCallNotification
-          callerName={incomingCall.peerName}
-          onAccept={() => {
-            setActivePeerId(incomingCall.peerId);
-            setIncomingCall(null);
-          }}
-          onDecline={() => {
-            hangUp(incomingCall.peerId);
-            setIncomingCall(null);
-          }}
-        />
-      )}
-
       {/* Active Call Modal */}
-      {(activePeerId || incomingCall) && peers[activePeerId || incomingCall?.peerId] && (
+      {activePeerId && peers[activePeerId] && (
         <ActiveCallModal
-          peerName={peers[activePeerId || incomingCall?.peerId].name}
+          peerName={peers[activePeerId].name}
           onHangUp={() => {
-            const callPeerId = activePeerId || incomingCall?.peerId;
-            hangUp(callPeerId);
+            hangUp(activePeerId);
             setActivePeerId(null);
-            setIncomingCall(null);
             setGroupCallPeers([]);
           }}
-          availablePeers={Object.values(peers).filter(p => p.id !== (activePeerId || incomingCall?.peerId) && !groupCallPeers.includes(p.id))}
+          availablePeers={Object.values(peers).filter(p => p.id !== activePeerId && !groupCallPeers.includes(p.id))}
           onAddPeer={(peerId) => {
             if (!groupCallPeers.includes(peerId)) {
               callPeer(peerId);
@@ -332,6 +352,16 @@ export default function Room() {
             </button>
           ))}
         </div>
+
+        {(activePeerId || groupCallPeers.length > 0) && (
+          <button
+            className={`icon-btn ${isScreenSharing ? 'active' : ''}`}
+            onClick={() => handleScreenShare()}
+            title={isScreenSharing ? "Stop Sharing" : "Share Screen"}
+          >
+            <Monitor size={18} />
+          </button>
+        )}
 
         <button
           className="icon-btn"

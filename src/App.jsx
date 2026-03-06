@@ -13,6 +13,8 @@ function App() {
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/room/:roomId" element={<Room />} />
+            <Route path="/office/:officeId/join" element={<Room isPublicJoin />} />
+            <Route path="/office/:officeId/admin" element={<Room isAdmin />} />
           </Routes>
         </div>
       </HashRouter>
