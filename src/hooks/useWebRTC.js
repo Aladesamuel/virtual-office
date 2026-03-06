@@ -33,7 +33,15 @@ export function useWebRTC(roomId, userName, isJoined) {
         if (!isJoined) return;
 
         navigator.mediaDevices.getUserMedia({
-            audio: { echoCancellation: true, noiseSuppression: true }
+            audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true,
+                typingNoiseDetection: true,
+                experimentalEchoCancellation: true,
+                experimentalNoiseSuppression: true,
+                experimentalAutoGainControl: true
+            }
         })
             .then(stream => {
                 localStreamRef.current = stream;

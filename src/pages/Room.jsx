@@ -34,11 +34,24 @@ export default function Room() {
     localStream
   } = useWebRTC(roomId, name, joined);
 
-  // Register incoming call handler
+  // Register incoming call handler with deduplication
   useEffect(() => {
     window.__handleIncomingCall = (callData) => {
-      if (!dndEnabled && !activePeerId && !incomingCall) {
+      // Only show notification if not already in a call and not already showing this caller
+      if (!dndEnabled && !activePeerId && (!incomingCall || incomingCall.peerId !== callData.peerId)) {
         setIncomingCall(callData);
+        // Add browser notification if available
+        if ('Notification' in window && Notification.permission === 'granted') {
+          try {
+            new Notification(`${callData.peerName} is calling`, {
+              body: 'Click to answer',
+              tag: `incoming-call-${callData.peerId}`,
+              requireInteraction: true
+            });
+          } catch (err) {
+            console.error('Notification error:', err);
+          }
+        }
       }
     };
 
@@ -46,6 +59,13 @@ export default function Room() {
       delete window.__handleIncomingCall;
     };
   }, [dndEnabled, activePeerId, incomingCall]);
+
+  // Request notification permission on mount
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, []);
 
   // Auto-notification for people entering
   const prevPeers = useRef({});
