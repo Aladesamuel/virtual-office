@@ -1,22 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import {
   User, Mic, MicOff, Phone, LogOut,
-  Lock, Unlock, Hand, Bell, UserRound, Clock, Monitor
+  Lock, Unlock, Hand, Bell, UserRound, Clock
 } from 'lucide-react';
 import { useWebRTC } from '../hooks/useWebRTC';
 import { ActiveCallModal } from '../components/ActiveCallModal';
-import { PublicJoinFlow } from '../components/PublicJoinFlow';
 import { ConnectionQuality } from '../components/ConnectionQuality';
 import { DoNotDisturb } from '../components/DoNotDisturb';
 import { CallHistory } from '../components/CallHistory';
 
-export default function Room({ isPublicJoin = false, isAdmin = false }) {
-  const { roomId, officeId } = useParams();
-  const navigate = useNavigate();
-  const actualRoomId = roomId || officeId;
-  const [showPublicJoin, setShowPublicJoin] = useState(isPublicJoin);
-  const [officeData, setOfficeData] = useState(null);
+export default function Room() {
+  const { roomId } = useParams();
   const [joined, setJoined] = useState(false);
   const [name, setName] = useState(() => localStorage.getItem('vo_username') || '');
   const [notifications, setNotifications] = useState([]);
@@ -26,28 +21,7 @@ export default function Room({ isPublicJoin = false, isAdmin = false }) {
   const [dndEnabled, setDndEnabled] = useState(() => localStorage.getItem('vo_dnd') === 'true');
   const [showCallHistory, setShowCallHistory] = useState(false);
   const [peerConnections, setPeerConnections] = useState({});
-  const [isScreenSharing, setIsScreenSharing] = useState(false);
-  const screenStreamRef = useRef(null);
   const callStartTime = useRef(null);
-
-  // Load office data when on public or admin routes
-  useEffect(() => {
-    if ((isPublicJoin || isAdmin) && officeId) {
-      try {
-        const data = localStorage.getItem(`office_${officeId}`);
-        if (data) {
-          setOfficeData(JSON.parse(data));
-          setShowPublicJoin(isPublicJoin);
-        } else {
-          console.error('Office not found:', officeId);
-          setTimeout(() => navigate('/'), 2000);
-        }
-      } catch (err) {
-        console.error('Error loading office data:', err);
-        setTimeout(() => navigate('/'), 2000);
-      }
-    }
-  }, [officeId, isPublicJoin, isAdmin, navigate]);
 
   const {
     peers, myId, myStatus, setMyStatus,
@@ -56,62 +30,7 @@ export default function Room({ isPublicJoin = false, isAdmin = false }) {
     joinRequests, acceptRequest,
     callPeer, knockPeer, hangUp,
     localStream
-  } = useWebRTC(actualRoomId, name, joined);
-
-  // Handle public join completion
-  const handlePublicJoinComplete = (userData) => {
-    setName(userData.name);
-    localStorage.setItem('vo_username', userData.name);
-    localStorage.setItem('vo_user_avatar', userData.avatar);
-    setShowPublicJoin(false);
-    setJoined(true);
-  };
-
-  // If showing public join flow, render that instead
-  if (showPublicJoin && officeData) {
-    return (
-      <PublicJoinFlow
-        onJoin={handlePublicJoinComplete}
-        officePassword={officeData.password}
-        officeRules={officeData.rules}
-      />
-    );
-  }
-
-  // Screen share handler
-  const handleScreenShare = async () => {
-    try {
-      if (!isScreenSharing) {
-        // Start screen share
-        const screenStream = await navigator.mediaDevices.getDisplayMedia({
-          video: { cursor: 'always' },
-          audio: false
-        });
-        screenStreamRef.current = screenStream;
-        setIsScreenSharing(true);
-        addNotification('Screen sharing started');
-
-        // Handle screen share stop
-        screenStream.getVideoTracks()[0].onended = () => {
-          handleScreenShare();
-        };
-      } else {
-        // Stop screen share
-        if (screenStreamRef.current) {
-          screenStreamRef.current.getTracks().forEach(track => track.stop());
-          screenStreamRef.current = null;
-        }
-        setIsScreenSharing(false);
-        addNotification('Screen sharing stopped');
-      }
-    } catch (err) {
-      if (err.name !== 'NotAllowedError') {
-        console.error('Screen share error:', err);
-        addNotification('Could not start screen share');
-      }
-    }
-  };
-
+  } = useWebRTC(roomId, name, joined);
 
   // Auto-notification for people entering
   const prevPeers = useRef({});
@@ -125,8 +44,6 @@ export default function Room({ isPublicJoin = false, isAdmin = false }) {
     });
     prevPeers.current = peers;
   }, [peers]);
-
-
 
   const addNotification = (message) => {
     const id = Math.random().toString(36).substr(2, 9);
@@ -312,7 +229,7 @@ export default function Room({ isPublicJoin = false, isAdmin = false }) {
           </div>
           <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
             <button onClick={() => acceptRequest(joinRequests[0].id)} style={{ background: 'white', color: 'var(--text-main)', padding: '8px 12px', borderRadius: '10px', border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>Accept</button>
-            <button onClick={() => {}} style={{ background: 'rgba(255,255,255,0.1)', color: 'white', padding: '8px 10px', borderRadius: '10px', border: 'none', fontWeight: 600, cursor: 'pointer', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>Ignore</button>
+            <button onClick={() => setJoinRequests(prev => prev.slice(1))} style={{ background: 'rgba(255,255,255,0.1)', color: 'white', padding: '8px 10px', borderRadius: '10px', border: 'none', fontWeight: 600, cursor: 'pointer', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>Ignore</button>
           </div>
         </div>
       )}
@@ -359,16 +276,6 @@ export default function Room({ isPublicJoin = false, isAdmin = false }) {
             </button>
           ))}
         </div>
-
-        {(activePeerId || groupCallPeers.length > 0) && (
-          <button
-            className={`icon-btn ${isScreenSharing ? 'active' : ''}`}
-            onClick={() => handleScreenShare()}
-            title={isScreenSharing ? "Stop Sharing" : "Share Screen"}
-          >
-            <Monitor size={18} />
-          </button>
-        )}
 
         <button
           className="icon-btn"
