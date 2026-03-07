@@ -32,13 +32,22 @@ export default function Room({ isPublicJoin = false, isAdmin = false }) {
 
   // Load office data when on public or admin routes
   useEffect(() => {
-    if (isPublicJoin || isAdmin) {
-      const data = localStorage.getItem(`office_${officeId}`);
-      if (data) {
-        setOfficeData(JSON.parse(data));
+    if ((isPublicJoin || isAdmin) && officeId) {
+      try {
+        const data = localStorage.getItem(`office_${officeId}`);
+        if (data) {
+          setOfficeData(JSON.parse(data));
+          setShowPublicJoin(isPublicJoin);
+        } else {
+          console.error('Office not found:', officeId);
+          setTimeout(() => navigate('/'), 2000);
+        }
+      } catch (err) {
+        console.error('Error loading office data:', err);
+        setTimeout(() => navigate('/'), 2000);
       }
     }
-  }, [officeId, isPublicJoin, isAdmin]);
+  }, [officeId, isPublicJoin, isAdmin, navigate]);
 
   const {
     peers, myId, myStatus, setMyStatus,
@@ -143,12 +152,10 @@ export default function Room({ isPublicJoin = false, isAdmin = false }) {
 
   // Call duration timer
   useEffect(() => {
-    const currentCallPeerId = activePeerId || incomingCall?.peerId;
-    
-    if (!currentCallPeerId) {
+    if (!activePeerId) {
       if (callDuration > 0) {
         // Save call to history
-        const peerName = peers[currentCallPeerId]?.name || 'Unknown';
+        const peerName = peers[activePeerId]?.name || 'Unknown';
         const stored = JSON.parse(localStorage.getItem('vo_call_history') || '[]');
         stored.unshift({
           id: `${Date.now()}-${Math.random()}`,
@@ -173,7 +180,7 @@ export default function Room({ isPublicJoin = false, isAdmin = false }) {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [activePeerId, incomingCall, peers]);
+  }, [activePeerId, peers]);
 
   // Update timer display
   useEffect(() => {
@@ -305,7 +312,7 @@ export default function Room({ isPublicJoin = false, isAdmin = false }) {
           </div>
           <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
             <button onClick={() => acceptRequest(joinRequests[0].id)} style={{ background: 'white', color: 'var(--text-main)', padding: '8px 12px', borderRadius: '10px', border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>Accept</button>
-            <button onClick={() => setJoinRequests(prev => prev.slice(1))} style={{ background: 'rgba(255,255,255,0.1)', color: 'white', padding: '8px 10px', borderRadius: '10px', border: 'none', fontWeight: 600, cursor: 'pointer', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>Ignore</button>
+            <button onClick={() => {}} style={{ background: 'rgba(255,255,255,0.1)', color: 'white', padding: '8px 10px', borderRadius: '10px', border: 'none', fontWeight: 600, cursor: 'pointer', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>Ignore</button>
           </div>
         </div>
       )}
