@@ -19,7 +19,6 @@ export function useWebRTC(roomId, userName, isJoined) {
     });
     const [myStatus, setMyStatus] = useState('Available');
     const [isMuted, setIsMuted] = useState(false);
-    const [isVideoEnabled, setIsVideoEnabled] = useState(false);
     const [isLocked, setIsLocked] = useState(false);
     const [joinRequests, setJoinRequests] = useState([]);
 
@@ -29,13 +28,12 @@ export function useWebRTC(roomId, userName, isJoined) {
     const signalsQueue = useRef({});
     const callbacksRef = useRef({});
 
-    // 1. Media Management
+    // 1. Audio-Only Media Management
     useEffect(() => {
         if (!isJoined) return;
 
         navigator.mediaDevices.getUserMedia({
-            audio: { echoCancellation: true, noiseSuppression: true },
-            video: isVideoEnabled
+            audio: { echoCancellation: true, noiseSuppression: true }
         })
             .then(stream => {
                 localStreamRef.current = stream;
@@ -45,19 +43,32 @@ export function useWebRTC(roomId, userName, isJoined) {
                 Object.values(peerConnections.current).forEach(pc => {
                     stream.getTracks().forEach(track => {
                         const sender = pc.getSenders().find(s => s.track?.kind === track.kind);
-                        if (sender) sender.replaceTrack(track);
+                        if (sender) sender.replaceTrack(track).catch(err => console.error('Replace track error:', err));
                         else pc.addTrack(track, stream);
                     });
                 });
             })
-            .catch(err => console.error("Media Error:", err));
+            .catch(err => {
+                console.error("Media Error:", err.name, err.message);
+                if (err.name === 'NotAllowedError') {
+                    console.error('Microphone permission denied');
+                } else if (err.name === 'NotFoundError') {
+                    console.error('No microphone found');
+                }
+            });
 
         return () => {
             if (localStreamRef.current) {
-                localStreamRef.current.getTracks().forEach(t => t.stop());
+                localStreamRef.current.getTracks().forEach(t => {
+                    try {
+                        t.stop();
+                    } catch (err) {
+                        console.error('Error stopping track:', err);
+                    }
+                });
             }
         };
-    }, [isJoined, isVideoEnabled]);
+    }, [isJoined]);
 
     // 2. Peer Connection Factory
     const getPeerConnection = useCallback((remoteId) => {
@@ -252,7 +263,6 @@ export function useWebRTC(roomId, userName, isJoined) {
     return {
         peers, myId, myStatus, setMyStatus,
         isMuted, setIsMuted: (v) => { setIsMuted(v); if (localStreamRef.current) localStreamRef.current.getAudioTracks().forEach(t => t.enabled = !v); },
-        isVideoEnabled, setIsVideoEnabled,
         isLocked, setIsLocked,
         joinRequests, acceptRequest: (id) => { setJoinRequests(r => r.filter(x => x.id !== id)); callPeer(id); },
         callPeer, knockPeer, hangUp,
